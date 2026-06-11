@@ -163,7 +163,7 @@ export function Sensitivity() {
       sub="The model is only as good as its cost-sensitive inputs. This flexes each driver by a set percentage and ranks the resulting price swing, so you see which one or two assumptions to defend hardest. A long bar means a small error there moves the bid a lot."
       actions={
         <div style={{ display: 'flex', gap: 6 }}>
-          {[0.1, 0.2, 0.3].map((p) => (
+          {[0.1, 0.15, 0.2, 0.25, 0.3, 0.35].map((p) => (
             <button
               key={p}
               type="button"
