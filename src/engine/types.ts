@@ -10,14 +10,22 @@ export type PlugMode = 'last' | 'perPhase' | 'largest';
 export type ColorOfMoney = 'RDT&E' | 'O&M' | 'Procurement' | 'Mixed';
 export type RateBasis = 'actual' | 'survey' | '';
 export type HoursBasis = 'productive' | 'paid';
-export type Phase = 1 | 2;
+/** 1-based contract-period index (1 = base period, 2+ = option periods). */
+export type Phase = number;
+
+/** A contract period (base or option). Each is its own CLIN/ALIN and funding action. */
+export interface PeriodDef {
+  label: string;
+  months: number;
+  color: ColorOfMoney | string;
+}
 
 export interface ControlInputs {
   scenario: string;
   /** Period-of-performance start, ISO date (YYYY-MM-DD). Drives milestone dates. */
   popStart: string;
-  baseMonths: number;
-  optionMonths: number;
+  /** Contract periods in order: base first, then options. At least one. */
+  periods: PeriodDef[];
   sprintLengthWeeks: number;
   /** Productive hours per sprint per FTE, net of leave and ceremonies. */
   productiveHrs: number;
@@ -31,6 +39,11 @@ export interface ControlInputs {
   gnaODC: number;
   fee: number;
   escalation: number;
+  /**
+   * Optional per-program-year escalation overrides (index 0 = Yr1→Yr2 step).
+   * A blank/missing entry falls back to the single escalation rate.
+   */
+  escalationByYear?: (number | null)[];
   subHandling: number;
   /** Optional fee applied on sub cost + handling. */
   subFee: number;
@@ -42,8 +55,6 @@ export interface ControlInputs {
   budgetCeiling: number;
   /** Whole-dollar rounding applied to milestone prices. */
   roundTo: number;
-  colorPhase1: ColorOfMoney;
-  colorPhase2: ColorOfMoney;
   odcPhasing: OdcPhasing;
   plugMode: PlugMode;
   /** Indirect burden applied to fixed milestone amounts. */
@@ -58,6 +69,12 @@ export interface ControlInputs {
 export interface LaborRate {
   lcat: string;
   direct: number;
+  /**
+   * Optional FPRA-style direct rate per program year (index 0 = Yr1).
+   * A positive entry overrides direct × escalation for that year; blank
+   * entries fall back to the escalated Yr1 direct.
+   */
+  directByYear?: (number | null)[];
   rateBasis?: RateBasis;
   skill?: string;
   yoe?: number;
@@ -138,9 +155,26 @@ export interface Milestone {
   gated: boolean;
 }
 
+/** Bottom-up subcontractor labor line: fully burdened sub rate × hours. */
+export interface SubLine {
+  role: string;
+  rate: number;
+  hours: number;
+}
+
 export interface TeamingPartner {
   party: string;
+  /** Manual sub cost; ignored when bottom-up lines exist. */
   subCost: number;
+  lines?: SubLine[];
+}
+
+/** Monte Carlo configuration. */
+export interface RiskInputs {
+  /** 0..1 Gaussian-copula correlation between epic outcomes per trial. */
+  correlation: number;
+  /** Also sample team velocity per trial from the historical CoV. */
+  sampleVelocity: boolean;
 }
 
 export interface CapacityTier {
@@ -165,8 +199,11 @@ export interface CapacityInputs {
 }
 
 export interface Pursuit {
+  /** Data-shape version; repairPursuit migrates older shapes forward. */
+  schemaVersion?: number;
   name: string;
   control: ControlInputs;
+  risk: RiskInputs;
   rates: LaborRate[];
   archetypes: Archetype[];
   velocity: VelocityInputs;
@@ -221,6 +258,9 @@ export interface OdcDerived extends OdcLine {
 }
 
 export interface TeamingDerived extends TeamingPartner {
+  /** Manual subCost, or the sum of bottom-up lines when present. */
+  effectiveSubCost: number;
+  fromLines: boolean;
   handling: number;
   feeOnSub: number;
   price: number;
@@ -307,8 +347,15 @@ export interface FundingRow {
 export interface FundingDerived {
   rows: FundingRow[];
   colors: string[];
-  colorPhase1: string;
-  colorPhase2: string;
+}
+
+/** A contract period with its derived schedule position and price. */
+export interface PeriodDerived extends PeriodDef {
+  /** 1-based period index (= the phase value rows reference). */
+  index: number;
+  /** Month offset of the period start from PoP start. */
+  startMonth: number;
+  price: number;
 }
 
 export interface DemandYear {
@@ -395,7 +442,11 @@ export interface ComputeResult {
   prime: number;
   primeShare: number;
   msRows: MilestoneRow[];
+  periods: PeriodDerived[];
+  periodPrices: number[];
+  /** Price of period 1 (compatibility with two-phase views). */
   phase1Price: number;
+  /** Combined price of periods 2..N. */
   phase2Price: number;
   msPriceTotal: number;
   boeCaps: BoeCapability[];

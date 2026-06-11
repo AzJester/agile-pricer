@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { confirmDialog, DialogHost, promptDialog } from './components/dialogs';
+import { SnapshotsDialog } from './components/SnapshotsDialog';
+import { SyncDialog } from './components/SyncDialog';
 import { Pill, statusTone, utilTone } from './components/ui';
 import { looksLikePursuit } from './engine';
 import { exportExcel } from './export/excel';
@@ -58,6 +60,8 @@ function Toolbar() {
   const s = useActivePursuit();
   const r = useResult();
   const pursuitFileRef = useRef<HTMLInputElement>(null);
+  const [showSnapshots, setShowSnapshots] = useState(false);
+  const [showSync, setShowSync] = useState(false);
 
   const onNew = async () => {
     const name = await promptDialog(
@@ -190,6 +194,12 @@ function Toolbar() {
       >
         Word
       </button>
+      <button type="button" className="tbtn" title="Named point-in-time copies of this pursuit" onClick={() => setShowSnapshots(true)}>
+        Snapshots
+      </button>
+      <button type="button" className="tbtn" title="Push/pull the portfolio to a team sync server" onClick={() => setShowSync(true)}>
+        Sync
+      </button>
       <button type="button" className="tbtn" title="Show or hide input tips" onClick={store.toggleTips}>
         Tips: {store.tipsOn ? 'on' : 'off'}
       </button>
@@ -207,6 +217,8 @@ function Toolbar() {
           e.target.value = '';
         }}
       />
+      {showSnapshots && <SnapshotsDialog onClose={() => setShowSnapshots(false)} />}
+      {showSync && <SyncDialog onClose={() => setShowSync(false)} />}
     </div>
   );
 }

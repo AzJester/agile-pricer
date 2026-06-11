@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "npm run build && playwright test",
+    "serve:sync": "node server/server.mjs",
     "lint": "tsc -b --noEmit"
   },
   "dependencies": {
@@ -22,11 +24,14 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "fast-check": "^4.8.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.3",
+    "vite-plugin-pwa": "^1.3.0",
     "vitest": "^2.1.8"
   }
 }

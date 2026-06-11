@@ -5,16 +5,16 @@ import { money0 } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
 
-const PHASE_OPTIONS = [
-  { value: '1', label: '1' },
-  { value: '2', label: '2' },
-];
+function periodOptions(s: { control: { periods: { label: string }[] } }) {
+  return s.control.periods.map((p, i) => ({ value: String(i + 1), label: `${i + 1} · ${p.label}` }));
+}
 
 export function Loe() {
   const s = useActivePursuit();
   const r = useResult();
   const update = useStore((st) => st.updateActive);
   const lcatOptions = s.rates.map((x) => ({ value: x.lcat }));
+  const PHASE_OPTIONS = periodOptions(s);
 
   const set = (i: number, key: keyof LoeLine, v: string | number) =>
     update((p) => {
@@ -37,7 +37,7 @@ export function Loe() {
                 <th>Function</th>
                 <th>LCAT</th>
                 <th className="num">FTE</th>
-                <th className="num">Phase</th>
+                <th className="num">Period</th>
                 <th className="num">Months</th>
                 <th className="num">Rate Yr</th>
                 <th className="num">Monthly</th>
@@ -123,6 +123,7 @@ export function PSupport() {
   const update = useStore((st) => st.updateActive);
   const inc = s.control.includePSupport !== false;
   const lcatOptions = s.rates.map((x) => ({ value: x.lcat }));
+  const PHASE_OPTIONS = periodOptions(s);
 
   const set = (i: number, key: keyof PSupportLine, v: string | number) =>
     update((p) => {
@@ -162,7 +163,7 @@ export function PSupport() {
                 <th>Role / Function</th>
                 <th>LCAT (rate basis)</th>
                 <th className="num">FTE</th>
-                <th className="num">Phase</th>
+                <th className="num">Period</th>
                 <th className="num">Months</th>
                 <th className="num">Rate Yr</th>
                 <th className="num">Monthly</th>

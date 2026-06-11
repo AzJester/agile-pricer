@@ -75,16 +75,16 @@ export function Results() {
           </div>
         </div>
       </Card>
-      <Card title="Phase Split">
+      <Card title="Period Split">
         <div className="cgrid">
-          <div className="field">
-            <label>Phase 1 price (ALIN 001, exercised)</label>
-            <span className="mono">{money0(r.phase1Price)}</span>
-          </div>
-          <div className="field">
-            <label>Phase 2 price (ALIN 002, option)</label>
-            <span className="mono">{money0(r.phase2Price)}</span>
-          </div>
+          {r.periods.map((p) => (
+            <div className="field" key={p.index}>
+              <label>
+                {p.label} (ALIN {String(p.index).padStart(3, '0')}, {p.index === 1 ? 'exercised' : 'option'})
+              </label>
+              <span className="mono">{money0(p.price)}</span>
+            </div>
+          ))}
         </div>
       </Card>
       <Card title="Cost Element Build & Indirect Treatment">

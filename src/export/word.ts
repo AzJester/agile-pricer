@@ -49,7 +49,7 @@ export async function exportWord(s: Pursuit, r: ComputeResult) {
           table(
             ['ALIN', 'Milestone', 'Est. Completion', 'Payable Price'],
             r.msRows.map((m) => [
-              m.phase === 1 ? 'ALIN 001' : 'ALIN 002',
+              'ALIN ' + String(m.phase).padStart(3, '0'),
               m.name,
               addMonths(c.popStart, m.monthOffset),
               money0(m.price),

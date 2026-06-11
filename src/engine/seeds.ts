@@ -45,12 +45,16 @@ function backlogRows(rows: BacklogTuple[]) {
  */
 export function baselineSeed(): Pursuit {
   return {
+    schemaVersion: 2,
     name: 'Reference Baseline (Framework & Mission Apps)',
+    risk: { correlation: 0, sampleVelocity: false },
     control: {
       scenario: 'Baseline',
       popStart: '2026-08-01',
-      baseMonths: 12,
-      optionMonths: 24,
+      periods: [
+        { label: 'Base', months: 12, color: 'RDT&E' },
+        { label: 'Option 1', months: 24, color: 'RDT&E' },
+      ],
       sprintLengthWeeks: 2,
       productiveHrs: 64,
       workingSprintsYr: 24,
@@ -69,8 +73,6 @@ export function baselineSeed(): Pursuit {
       ptw: 0,
       budgetCeiling: 60000000,
       roundTo: 1000,
-      colorPhase1: 'RDT&E',
-      colorPhase2: 'RDT&E',
       odcPhasing: 'year',
       plugMode: 'last',
       fixedBurden: 0,
@@ -171,12 +173,16 @@ export function baselineSeed(): Pursuit {
 
 export function blankSeed(): Pursuit {
   return {
+    schemaVersion: 2,
     name: 'New Pursuit',
+    risk: { correlation: 0, sampleVelocity: false },
     control: {
       scenario: 'Baseline',
       popStart: new Date().toISOString().slice(0, 10),
-      baseMonths: 12,
-      optionMonths: 12,
+      periods: [
+        { label: 'Base', months: 12, color: 'RDT&E' },
+        { label: 'Option 1', months: 12, color: 'O&M' },
+      ],
       sprintLengthWeeks: 2,
       productiveHrs: 64,
       workingSprintsYr: 24,
@@ -195,8 +201,6 @@ export function blankSeed(): Pursuit {
       ptw: 0,
       budgetCeiling: 10000000,
       roundTo: 1000,
-      colorPhase1: 'RDT&E',
-      colorPhase2: 'O&M',
       odcPhasing: 'year',
       plugMode: 'last',
       fixedBurden: 0,
@@ -247,14 +251,14 @@ export function calibratedSeed(): Pursuit {
       ...b.control,
       scenario: 'Past-performance basis',
       popStart: '2026-08-01',
-      baseMonths: 12,
-      optionMonths: 24,
+      periods: [
+        { label: 'Base', months: 12, color: 'RDT&E' },
+        { label: 'Option 1', months: 24, color: 'RDT&E' },
+      ],
       fringe: 0.25,
       overhead: 0.15,
       gna: 0.08,
       budgetCeiling: 5000000,
-      colorPhase1: 'RDT&E',
-      colorPhase2: 'RDT&E',
     },
     rates: LCATS.map((l, i) => ({ lcat: l, direct: DIRECTS[i], rateBasis: 'survey' as const, source: 'Salary survey / HR3D' })),
     archetypes: [{ name: 'Delivery Squad', velocity: 38, teams: 1, hc: hc([0, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0]) }],
@@ -311,12 +315,16 @@ export function demoSeed(): Pursuit {
     { name: 'Apps Squad', velocity: 42, teams: 2, hc: hc([0.5, 1, 0.5, 2, 3, 0.5, 1, 1, 2, 0.5, 0]) },
   ];
   return {
+    schemaVersion: 2,
     name: 'Feature Showcase — Software Factory',
+    risk: { correlation: 0.3, sampleVelocity: true },
     control: {
       scenario: 'Showcase',
       popStart: '2026-10-01',
-      baseMonths: 12,
-      optionMonths: 24,
+      periods: [
+        { label: 'Base', months: 12, color: 'RDT&E' },
+        { label: 'Option 1', months: 24, color: 'O&M' },
+      ],
       sprintLengthWeeks: 2,
       productiveHrs: 64,
       workingSprintsYr: 24,
@@ -335,8 +343,6 @@ export function demoSeed(): Pursuit {
       ptw: 0,
       budgetCeiling: 45000000,
       roundTo: 1000,
-      colorPhase1: 'RDT&E',
-      colorPhase2: 'O&M',
       odcPhasing: 'year',
       plugMode: 'perPhase',
       fixedBurden: 0.08,

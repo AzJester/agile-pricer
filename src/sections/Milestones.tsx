@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { NumCell, SelectCell, TextCell, TextInput } from '../components/inputs';
 import { AddRowButton, DeleteRowButton, Section } from '../components/ui';
 import type { Milestone, Phase } from '../engine';
@@ -5,15 +6,12 @@ import { addMonths, money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
 
-const PHASE_OPTIONS = [
-  { value: '1', label: '1' },
-  { value: '2', label: '2' },
-];
 
 export function Milestones() {
   const s = useActivePursuit();
   const r = useResult();
   const update = useStore((st) => st.updateActive);
+  const PHASE_OPTIONS = s.control.periods.map((p, i) => ({ value: String(i + 1), label: `${i + 1} · ${p.label}` }));
 
   const set = (i: number, key: keyof Milestone, v: string | number | boolean) =>
     update((p) => {
@@ -43,7 +41,7 @@ export function Milestones() {
               <tr>
                 <th>Milestone / Deliverable</th>
                 <th>PI</th>
-                <th className="num">Phase</th>
+                <th className="num">Period</th>
                 <th className="num">Month Off.</th>
                 <th className="num">Est. Completion</th>
                 <th className="num">Fixed / Mgmt $</th>
@@ -133,11 +131,12 @@ export function Teaming() {
   const s = useActivePursuit();
   const r = useResult();
   const update = useStore((st) => st.updateActive);
+  const [openLines, setOpenLines] = useState<Record<number, boolean>>({});
 
   return (
     <Section
       title="Teaming"
-      sub="Subcontractors are built bottom-up: sub cost plus prime handling. The prime takes the residual of total price after subs. Shares feed the per-milestone prime/sub split on the schedule."
+      sub="Subcontractors carry their cost plus prime handling; the prime takes the residual of total price after subs. Enter a sub's cost manually, or expand a row to build it bottom-up from the sub's fully burdened rates × hours. Shares feed the per-milestone prime/sub split on the schedule."
     >
       <div className="card flush">
         <div className="ch">
@@ -157,44 +156,153 @@ export function Teaming() {
             </thead>
             <tbody>
               {s.teaming.map((t, i) => {
-                const d = r.teaming[i] || { handling: 0, price: 0, share: 0 };
+                const d = r.teaming[i] || { handling: 0, price: 0, share: 0, fromLines: false, effectiveSubCost: 0 };
+                const lines = t.lines || [];
                 return (
-                  <tr key={i}>
-                    <td>
-                      <TextCell
-                        value={t.party}
-                        onCommit={(v) =>
-                          update((p) => {
-                            p.teaming[i].party = v;
-                          })
-                        }
-                      />
-                    </td>
-                    <td className="num">
-                      <NumCell
-                        value={t.subCost}
-                        onCommit={(v) =>
-                          update((p) => {
-                            p.teaming[i].subCost = v;
-                          })
-                        }
-                      />
-                    </td>
-                    <td className="num calc dim">{money0(d.handling)}</td>
-                    <td className="num calc">
-                      <b>{money0(d.price)}</b>
-                    </td>
-                    <td className="num calc">{pct(d.share, 2)}</td>
-                    <td>
-                      <DeleteRowButton
-                        onClick={() =>
-                          update((p) => {
-                            p.teaming.splice(i, 1);
-                          })
-                        }
-                      />
-                    </td>
-                  </tr>
+                  <React.Fragment key={i}>
+                    <tr>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button
+                            type="button"
+                            className="tbtn"
+                            style={{
+                              background: 'var(--paper)',
+                              color: 'var(--force)',
+                              borderColor: 'var(--line-2)',
+                              padding: '2px 8px',
+                            }}
+                            title="Bottom-up labor lines"
+                            onClick={() => setOpenLines((o) => ({ ...o, [i]: !o[i] }))}
+                          >
+                            {openLines[i] ? '▾' : '▸'} {lines.length ? `${lines.length} lines` : 'lines'}
+                          </button>
+                          <TextCell
+                            value={t.party}
+                            onCommit={(v) =>
+                              update((p) => {
+                                p.teaming[i].party = v;
+                              })
+                            }
+                          />
+                        </div>
+                      </td>
+                      <td className="num">
+                        {d.fromLines ? (
+                          <span className="calc" title="Sum of bottom-up lines">
+                            {money0(d.effectiveSubCost)}
+                          </span>
+                        ) : (
+                          <NumCell
+                            value={t.subCost}
+                            onCommit={(v) =>
+                              update((p) => {
+                                p.teaming[i].subCost = v;
+                              })
+                            }
+                          />
+                        )}
+                      </td>
+                      <td className="num calc dim">{money0(d.handling)}</td>
+                      <td className="num calc">
+                        <b>{money0(d.price)}</b>
+                      </td>
+                      <td className="num calc">{pct(d.share, 2)}</td>
+                      <td>
+                        <DeleteRowButton
+                          onClick={() =>
+                            update((p) => {
+                              p.teaming.splice(i, 1);
+                            })
+                          }
+                        />
+                      </td>
+                    </tr>
+                    {openLines[i] && (
+                      <tr>
+                        <td colSpan={6} style={{ background: '#fafbfd', padding: '8px 16px 12px 40px' }}>
+                          <table style={{ maxWidth: 640 }}>
+                            <thead>
+                              <tr>
+                                <th>Sub role / task</th>
+                                <th className="num">Burdened $/hr</th>
+                                <th className="num">Hours</th>
+                                <th className="num">Cost</th>
+                                <th />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {lines.map((l, li) => (
+                                <tr key={li}>
+                                  <td>
+                                    <TextCell
+                                      value={l.role}
+                                      onCommit={(v) =>
+                                        update((p) => {
+                                          p.teaming[i].lines![li].role = v;
+                                        })
+                                      }
+                                    />
+                                  </td>
+                                  <td className="num">
+                                    <NumCell
+                                      value={l.rate}
+                                      onCommit={(v) =>
+                                        update((p) => {
+                                          p.teaming[i].lines![li].rate = v;
+                                        })
+                                      }
+                                    />
+                                  </td>
+                                  <td className="num">
+                                    <NumCell
+                                      value={l.hours}
+                                      onCommit={(v) =>
+                                        update((p) => {
+                                          p.teaming[i].lines![li].hours = v;
+                                        })
+                                      }
+                                    />
+                                  </td>
+                                  <td className="num calc">{money0(l.rate * l.hours)}</td>
+                                  <td>
+                                    <DeleteRowButton
+                                      onClick={() =>
+                                        update((p) => {
+                                          p.teaming[i].lines!.splice(li, 1);
+                                          if (!p.teaming[i].lines!.length) delete p.teaming[i].lines;
+                                        })
+                                      }
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                              {!lines.length && (
+                                <tr>
+                                  <td colSpan={5} className="sub">
+                                    No lines. Manual sub cost applies until lines are added.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                          <button
+                            type="button"
+                            className="addrow"
+                            style={{ margin: '8px 0 0' }}
+                            onClick={() =>
+                              update((p) => {
+                                if (!Array.isArray(p.teaming[i].lines)) p.teaming[i].lines = [];
+                                p.teaming[i].lines!.push({ role: 'Sub role', rate: 150, hours: 1000 });
+                              })
+                            }
+                          >
+                            + Add labor line
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
               <tr>

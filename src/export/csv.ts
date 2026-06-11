@@ -5,7 +5,7 @@ import { csvRows, downloadText } from './download';
 export function exportMpsCsv(s: Pursuit, r: ComputeResult) {
   const head = ['ALIN', 'Milestone', 'Estimated Completion', 'Payable Amount', 'Prime Share', ...s.teaming.map((t) => t.party)];
   const rows = r.msRows.map((m) => [
-    m.phase === 1 ? 'ALIN 001' : 'ALIN 002',
+    'ALIN ' + String(m.phase).padStart(3, '0'),
     m.name,
     addMonths(s.control.popStart, m.monthOffset),
     m.price.toFixed(2),

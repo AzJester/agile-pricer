@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { promptDialog } from '../components/dialogs';
-import { NumCell, SelectCell, TextCell } from '../components/inputs';
+import { NumCell, OptionalNumInput, SelectCell, TextCell, Toggle } from '../components/inputs';
 import { AddRowButton, Card, DeleteRowButton, Legend, Note, Section, TipBox } from '../components/ui';
 import type { LaborRate } from '../engine';
 import { parseRatesCsv, readFileAsText } from '../export/json';
@@ -17,6 +17,17 @@ export function Rates() {
   const saveRateSet = useStore((st) => st.saveRateSet);
   const showToast = useStore((st) => st.showToast);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [showYears, setShowYears] = useState(() => s.rates.some((x) => Array.isArray(x.directByYear)));
+  const yearsN = r.yearsN;
+
+  const setDirectYear = (i: number, y: number, v: number | null) =>
+    update((p) => {
+      const rate = p.rates[i];
+      const cur = Array.isArray(rate.directByYear) ? [...rate.directByYear] : [];
+      while (cur.length < y + 1) cur.push(null);
+      cur[y] = v;
+      rate.directByYear = cur.some((x) => x !== null) ? cur : undefined;
+    });
 
   const setRate = (i: number, key: keyof LaborRate, v: string | number) =>
     update((p) => {
@@ -129,9 +140,16 @@ export function Rates() {
       <div className="card flush">
         <div className="ch">
           <h3>Fully Loaded Rate Build & Basis</h3>
-          <button type="button" className="tbtn solid" onClick={() => fileRef.current?.click()}>
-            Import CSV
-          </button>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Toggle
+              label={`FPRA per-year rates (${yearsN} yrs)`}
+              checked={showYears}
+              onCommit={(v) => setShowYears(v)}
+            />
+            <button type="button" className="tbtn solid" onClick={() => fileRef.current?.click()}>
+              Import CSV
+            </button>
+          </span>
           <input
             ref={fileRef}
             type="file"
@@ -149,7 +167,13 @@ export function Rates() {
             <thead>
               <tr>
                 <th>Labor Category (LCAT)</th>
-                <th className="num">Direct $/hr</th>
+                <th className="num">Direct $/hr (Yr1)</th>
+                {showYears &&
+                  Array.from({ length: yearsN - 1 }, (_, y) => (
+                    <th key={y} className="num">
+                      Yr{y + 2} $/hr
+                    </th>
+                  ))}
                 <th>Rate Basis</th>
                 <th>Skill</th>
                 <th className="num">YOE</th>
@@ -179,6 +203,17 @@ export function Rates() {
                   <td className="num">
                     <NumCell value={rate.direct} onCommit={(v) => setRate(i, 'direct', v)} />
                   </td>
+                  {showYears &&
+                    Array.from({ length: yearsN - 1 }, (_, y) => (
+                      <td key={y} className="num">
+                        <OptionalNumInput
+                          className="cellinput num"
+                          placeholder={(rate.direct * Math.pow(1 + s.control.escalation, y + 1)).toFixed(2)}
+                          value={rate.directByYear?.[y + 1] ?? ''}
+                          onCommit={(v) => setDirectYear(i, y + 1, v)}
+                        />
+                      </td>
+                    ))}
                   <td>
                     <SelectCell
                       value={rate.rateBasis || ''}

@@ -24,11 +24,23 @@ export interface IndirectRateSet {
   gna: number;
 }
 
+export interface SnapshotEntry {
+  id: string;
+  pursuitId: string;
+  name: string;
+  takenAt: string;
+  data: Pursuit;
+}
+
 interface PersistedState {
   pursuits: PursuitEntry[];
   activeId: string;
   rateLibrary: IndirectRateSet[];
   tipsOn: boolean;
+  /** Pursuit pinned as the baseline in Scenario Compare. */
+  baselineId: string | null;
+  /** Named point-in-time copies ("as-submitted", "BAFO"). */
+  snapshots: SnapshotEntry[];
 }
 
 interface Snapshot {
@@ -52,6 +64,12 @@ export interface AppState extends PersistedState {
   undo: () => void;
   redo: () => void;
   toggleTips: () => void;
+  setBaseline: (id: string | null) => void;
+  takeSnapshot: (name: string) => void;
+  restoreSnapshot: (id: string) => void;
+  deleteSnapshot: (id: string) => void;
+  /** Replace local pursuits/rate library wholesale (sync pull). */
+  replaceAll: (pursuits: PursuitEntry[], rateLibrary: IndirectRateSet[]) => void;
   applyRateSet: (name: string) => void;
   saveRateSet: (name: string) => void;
   showToast: (msg: string) => void;
@@ -72,7 +90,14 @@ function seedState(): PersistedState {
   const a = { id: uid(), data: baselineSeed() };
   const b = { id: uid(), data: calibratedSeed() };
   const c = { id: uid(), data: demoSeed() };
-  return { pursuits: [a, b, c], activeId: a.id, rateLibrary: DEFAULT_RATE_LIBRARY, tipsOn: true };
+  return {
+    pursuits: [a, b, c],
+    activeId: a.id,
+    rateLibrary: DEFAULT_RATE_LIBRARY,
+    tipsOn: true,
+    baselineId: null,
+    snapshots: [],
+  };
 }
 
 function loadPersisted(): PersistedState {
@@ -89,6 +114,10 @@ function loadPersisted(): PersistedState {
       rateLibrary:
         Array.isArray(parsed.rateLibrary) && parsed.rateLibrary.length ? parsed.rateLibrary : DEFAULT_RATE_LIBRARY,
       tipsOn: parsed.tipsOn !== false,
+      baselineId: typeof parsed.baselineId === 'string' ? parsed.baselineId : null,
+      snapshots: Array.isArray(parsed.snapshots)
+        ? parsed.snapshots.map((sn) => ({ ...sn, data: repairPursuit(sn.data) }))
+        : [],
     };
   } catch {
     return seedState();
@@ -99,7 +128,14 @@ function persist(s: PersistedState) {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ pursuits: s.pursuits, activeId: s.activeId, rateLibrary: s.rateLibrary, tipsOn: s.tipsOn }),
+      JSON.stringify({
+        pursuits: s.pursuits,
+        activeId: s.activeId,
+        rateLibrary: s.rateLibrary,
+        tipsOn: s.tipsOn,
+        baselineId: s.baselineId,
+        snapshots: s.snapshots,
+      }),
     );
     return true;
   } catch {
@@ -240,6 +276,46 @@ export const useStore = create<AppState>((set, get) => {
 
     toggleTips: () => {
       commit({ tipsOn: !get().tipsOn });
+    },
+
+    setBaseline: (id) => {
+      commit({ baselineId: id });
+    },
+
+    takeSnapshot: (name) => {
+      if (!name.trim()) return;
+      const { pursuits, activeId, snapshots } = get();
+      const active = pursuits.find((p) => p.id === activeId);
+      if (!active) return;
+      const entry: SnapshotEntry = {
+        id: uid(),
+        pursuitId: activeId,
+        name: name.trim(),
+        takenAt: new Date().toISOString(),
+        data: JSON.parse(JSON.stringify(active.data)) as Pursuit,
+      };
+      commit({ snapshots: [...snapshots, entry] });
+      get().showToast(`Snapshot "${entry.name}" saved`);
+    },
+
+    restoreSnapshot: (id) => {
+      const sn = get().snapshots.find((x) => x.id === id);
+      if (!sn) return;
+      const data = JSON.parse(JSON.stringify(sn.data)) as Pursuit;
+      data.name = `${sn.data.name} @ ${sn.name}`;
+      const entry = { id: uid(), data };
+      commit({ pursuits: [...get().pursuits, entry], activeId: entry.id });
+      get().showToast('Snapshot restored as a new pursuit');
+    },
+
+    deleteSnapshot: (id) => {
+      commit({ snapshots: get().snapshots.filter((x) => x.id !== id) });
+    },
+
+    replaceAll: (pursuits, rateLibrary) => {
+      if (!pursuits.length) return;
+      const repaired = pursuits.map((p) => ({ id: p.id || uid(), data: repairPursuit(p.data) }));
+      commit({ pursuits: repaired, activeId: repaired[0].id, rateLibrary });
     },
 
     applyRateSet: (name) => {

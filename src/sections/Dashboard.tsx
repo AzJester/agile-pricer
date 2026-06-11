@@ -132,39 +132,38 @@ export function Funding() {
   const update = useStore((st) => st.updateActive);
   const f = r.funding;
 
-  const colSel = (label: string, key: 'colorPhase1' | 'colorPhase2') => (
-    <div className="field">
-      <label>{label}</label>
-      <select
-        value={s.control[key]}
-        onChange={(e) =>
-          update((p) => {
-            p.control[key] = e.target.value as typeof p.control.colorPhase1;
-          })
-        }
-      >
-        {['RDT&E', 'O&M', 'Procurement', 'Mixed'].map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-
   return (
     <Section
       title="Funding & Color of Money"
-      sub="Milestone payments mapped to the federal fiscal year of completion (Oct–Sep) and tagged by appropriation. Each option year is its own funding action; appropriation types generally cannot be commingled. Planning support, not an obligation schedule."
+      sub="Milestone payments mapped to the federal fiscal year of completion (Oct–Sep) and tagged by appropriation. Each option period is its own funding action; appropriation types generally cannot be commingled. Planning support, not an obligation schedule."
     >
-      <Card title="Appropriation Tagging">
+      <Card title="Appropriation Tagging (per contract period)">
         <div className="cgrid">
-          {colSel('Phase 1 color of money', 'colorPhase1')}
-          {colSel('Phase 2 color of money', 'colorPhase2')}
+          {s.control.periods.map((p, i) => (
+            <div className="field" key={i}>
+              <label>
+                {p.label} <span className="hint">ALIN {String(i + 1).padStart(3, '0')} · {p.months} months</span>
+              </label>
+              <select
+                value={String(p.color)}
+                onChange={(e) =>
+                  update((x) => {
+                    x.control.periods[i].color = e.target.value;
+                  })
+                }
+              >
+                {['RDT&E', 'O&M', 'Procurement', 'Mixed'].map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
         </div>
         <Note style={{ marginTop: 10, marginBottom: 0 }}>
-          Tag drives the funding split below and the dashboard chart. Set it to fiscal reality (a sustainment phase may be
-          O&M, a modernization phase RDT&E).
+          The tag drives the funding split below and the dashboard chart. Set it to fiscal reality (a sustainment period may
+          be O&M, a modernization period RDT&E).
         </Note>
       </Card>
       <div className="card flush">

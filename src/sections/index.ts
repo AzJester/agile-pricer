@@ -10,6 +10,7 @@ import { Boe, Checks, Mps, ValueMap } from './Outputs';
 import { Overview } from './Overview';
 import { Rates } from './Rates';
 import { Results } from './Results';
+import { Staffing } from './Staffing';
 import { StartHere } from './StartHere';
 import { Teams } from './Teams';
 import { Phasing } from './Phasing';
@@ -65,6 +66,7 @@ export const SECTION_GROUPS: SectionGroup[] = [
     items: [
       { id: 'dashboard', label: 'Dashboard', component: Dashboard },
       { id: 'funding', label: 'Funding & Color', component: Funding },
+      { id: 'staffing', label: 'Cost Phasing & Staffing', component: Staffing },
       { id: 'risk', label: 'Risk (Monte Carlo)', component: Risk },
       { id: 'sensitivity', label: 'Sensitivity', component: Sensitivity },
       { id: 'margin', label: 'Margin Walk', component: MarginWalk },

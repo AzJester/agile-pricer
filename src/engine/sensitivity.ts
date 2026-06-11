@@ -35,6 +35,11 @@ export function sensitivity(s: Pursuit, pct = 0.2): SensitivityResult {
   });
   run(`Escalation ±${p}%`, (x, f) => {
     x.control.escalation = num(x.control.escalation) * f;
+    if (Array.isArray(x.control.escalationByYear)) {
+      x.control.escalationByYear = x.control.escalationByYear.map((v) =>
+        v === null || v === undefined ? v : num(v) * f,
+      );
+    }
   });
   run(`Fee ±${p}%`, (x, f) => {
     x.control.fee = num(x.control.fee) * f;

@@ -1,4 +1,4 @@
-import { NumCell, TextCell } from '../components/inputs';
+import { NumCell, SelectCell, TextCell } from '../components/inputs';
 import { AddRowButton, Card, DeleteRowButton, Note, Section } from '../components/ui';
 import type { OdcLine } from '../engine';
 import { money0 } from '../lib/format';
@@ -23,6 +23,8 @@ export function Odc() {
   const r = useResult();
   const update = useStore((st) => st.updateActive);
   const yN = r.yearsN;
+  const rowPhased = s.control.odcPhasing === 'row';
+  const PHASE_OPTIONS = s.control.periods.map((p, i) => ({ value: String(i + 1), label: `${i + 1} · ${p.label}` }));
 
   const set = (i: number, key: keyof OdcLine, v: string | number) =>
     update((p) => {
@@ -71,6 +73,7 @@ export function Odc() {
                 <th>Item</th>
                 <th>Category</th>
                 <th>Basis (unit × qty × periods)</th>
+                {rowPhased && <th className="num">Period</th>}
                 {Array.from({ length: yN }, (_, y) => (
                   <th key={y} className="num">
                     Yr {y + 1} $
@@ -95,6 +98,16 @@ export function Odc() {
                     <td>
                       <TextCell value={o.basis || ''} onCommit={(v) => set(i, 'basis', v)} />
                     </td>
+                    {rowPhased && (
+                      <td className="num">
+                        <SelectCell
+                          numeric
+                          value={String(o.phase)}
+                          options={PHASE_OPTIONS}
+                          onCommit={(v) => set(i, 'phase', Number(v))}
+                        />
+                      </td>
+                    )}
                     {Array.from({ length: yN }, (_, y) => (
                       <td key={y} className="num">
                         <NumCell
@@ -126,7 +139,7 @@ export function Odc() {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={3 + yN}>TOTAL ODC</td>
+                <td colSpan={(rowPhased ? 4 : 3) + yN}>TOTAL ODC</td>
                 <td className="num">{money0(r.odcRows.reduce((a, x) => a + x.escTotal, 0))}</td>
                 <td className="num">{money0(r.odcTot)}</td>
                 <td />

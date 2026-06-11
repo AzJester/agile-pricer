@@ -1,4 +1,4 @@
-import { compute, escF, mean, num, stdevSample } from './compute';
+import { compute, mean, num, stdevSample } from './compute';
 import type { Pursuit, SimulationResult } from './types';
 
 /** Inverse-CDF sample from a triangular distribution. */
@@ -8,37 +8,76 @@ export function triSample(lo: number, mode: number, hi: number, u: number = Math
   return u < fc ? lo + Math.sqrt(u * (hi - lo) * (mode - lo)) : hi - Math.sqrt((1 - u) * (hi - lo) * (hi - mode));
 }
 
+/** Standard normal CDF (Abramowitz & Stegun 7.1.26, |err| < 1.5e-7). */
+export function normCdf(x: number): number {
+  const sign = x < 0 ? -1 : 1;
+  const ax = Math.abs(x) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * ax);
+  const y =
+    1 -
+    ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) *
+      t *
+      Math.exp(-ax * ax);
+  return 0.5 * (1 + sign * y);
+}
+
+/** One standard normal draw (Box-Muller). */
+function normal(rand: () => number): number {
+  let u1 = rand();
+  if (u1 <= 1e-12) u1 = 1e-12;
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * rand());
+}
+
 /**
  * Monte Carlo over the backlog's three-point estimates. Non-backlog cost
  * (LOE, program support, ODC, fixed) is deterministic, matching compute().
+ *
+ * With `risk.correlation` > 0, epic outcomes share a common factor per trial
+ * (Gaussian copula): u_i = Φ(ρ·Z + √(1−ρ²)·Z_i). Independent sampling
+ * (ρ = 0) understates tail risk because epic overruns are usually driven by
+ * the same team and the same unknowns.
+ *
+ * With `risk.sampleVelocity`, each trial also draws a velocity multiplier
+ * from N(1, CoV) (floored at 0.2), so velocity uncertainty enters the
+ * distribution instead of living only in the reserve heuristic.
  */
 export function simulate(s: Pursuit, iters?: number, rand: () => number = Math.random): SimulationResult {
   const n = Math.max(200, Math.min(20000, iters || 3000));
   const R = compute(s);
   const c = s.control;
-  const esc = num(c.escalation);
   const capRes = num(s.velocity.capacityReserve);
   const ramp = num(s.velocity.rampFactor);
   const autoCurve = c.automationCurve || {};
+  const rho = Math.min(0.999, Math.max(0, num(s.risk?.correlation)));
+  const rhoC = Math.sqrt(1 - rho * rho);
+  const sampleVel = s.risk?.sampleVelocity === true && R.cov > 0;
+  // Per-PI-year escalated cost per team-sprint, recovered from the engine's
+  // own rows (lp50 = sp50 × escalated cps) so trials price labor identically
+  // to compute(), including FPRA rate tables and per-year escalation.
+  const cpsOfRow = R.rows.map((row) => (row.sp50 > 0 ? row.lp50 / row.sp50 : 0));
   // Includes program support so trials reconcile with the deterministic cost stack.
   const fixedBase = R.loeTot + R.psTot + R.odcTot + R.fixedTot;
   const samples = new Array<number>(n);
   for (let it = 0; it < n; it++) {
+    const z = rho > 0 ? normal(rand) : 0;
+    const velMult = sampleVel ? Math.max(0.2, 1 + R.cov * normal(rand)) : 1;
     let capLabor = 0;
-    for (const b of s.backlog) {
+    for (let bi = 0; bi < s.backlog.length; bi++) {
+      const b = s.backlog[bi];
       const lo = num(b.low);
       const li = num(b.likely);
       const hi = num(b.high);
-      const pts = triSample(lo, li, hi, rand());
+      const u = rho > 0 ? normCdf(rho * z + rhoC * normal(rand)) : rand();
+      const pts = triSample(lo, li, hi, u);
       const a = R.archMap[b.archetype] || { vel: 0, cps: 0 };
       const py = num(b.piYear) || 1;
       const rm = py === 1 ? ramp : 1;
       let autoF = num(autoCurve[py]);
       if (!(autoF > 0)) autoF = 1;
-      const denom = a.vel * rm * autoF;
+      const denom = a.vel * rm * autoF * velMult;
       const eff = capRes < 1 ? pts / (1 - capRes) : 0;
       const spr = denom ? eff / denom : 0;
-      capLabor += spr * a.cps * escF(py, esc);
+      capLabor += spr * cpsOfRow[bi];
     }
     samples[it] = capLabor + fixedBase;
   }

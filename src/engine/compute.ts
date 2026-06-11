@@ -8,9 +8,12 @@ import type {
   DemandYear,
   FundingRow,
   IntegrityCheck,
+  LaborRate,
   LoeDerived,
   MilestoneRow,
   OdcDerived,
+  PeriodDef,
+  PeriodDerived,
   PSupportDerived,
   Pursuit,
   TeamingDerived,
@@ -48,22 +51,83 @@ export function num(x: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Normalized contract periods: always at least one, with sane months. */
+export function periodsOf(s: Pursuit): PeriodDef[] {
+  const p = s.control.periods;
+  if (Array.isArray(p) && p.length) return p;
+  return [{ label: 'Base', months: 12, color: 'RDT&E' }];
+}
+
+/**
+ * Escalation factor for a program year. With per-year overrides the steps
+ * compound individually (fractional years interpolate the next step);
+ * without, it reduces exactly to (1+esc)^(year-1).
+ */
+export function makeEscFactor(esc: number, byYear?: (number | null)[]): (year: number) => number {
+  const overrides = Array.isArray(byYear) ? byYear : [];
+  const hasOverrides = overrides.some((v) => v !== null && v !== undefined && Number.isFinite(Number(v)));
+  return (year: number) => {
+    const y = Math.max(0, (year || 1) - 1);
+    if (!hasOverrides) return Math.pow(1 + esc, y);
+    let f = 1;
+    const full = Math.floor(y);
+    for (let i = 0; i < full; i++) {
+      const step = overrides[i];
+      f *= 1 + (step !== null && step !== undefined && Number.isFinite(Number(step)) ? num(step) : esc);
+    }
+    const frac = y - full;
+    if (frac > 0) {
+      const step = overrides[full];
+      f *= Math.pow(1 + (step !== null && step !== undefined && Number.isFinite(Number(step)) ? num(step) : esc), frac);
+    }
+    return f;
+  };
+}
+
 export function compute(s: Pursuit): ComputeResult {
   const c = s.control;
   const esc = num(c.escalation);
+  const escFactor = makeEscFactor(esc, c.escalationByYear);
   const fringe = num(c.fringe);
   const oh = num(c.overhead);
   const gna = num(c.gna);
-  const progMonths = num(c.baseMonths) + num(c.optionMonths);
+  const wrapMult = (1 + fringe) * (1 + oh) * (1 + gna);
+
+  const periods = periodsOf(s);
+  const nP = periods.length;
+  const periodStart: number[] = [];
+  {
+    let acc = 0;
+    for (const p of periods) {
+      periodStart.push(acc);
+      acc += Math.max(0, num(p.months));
+    }
+  }
+  const progMonths = periods.reduce((t, p) => t + Math.max(0, num(p.months)), 0);
+  const clampPhase = (v: unknown) => Math.min(Math.max(1, Math.round(num(v)) || 1), nP);
   const conf = c.confidence || 'P80';
 
-  // Rates -> loaded Year-1 hourly
+  // Rates -> loaded hourly. Yr1 map kept for display; per-year via loadedYr
+  // (FPRA-style directByYear overrides escalated Yr1 direct when present).
+  const rateMap: Record<string, LaborRate> = {};
+  for (const r of s.rates) rateMap[r.lcat] = r;
+  const directOfYr = (r: LaborRate, year: number): number => {
+    const tbl = r.directByYear;
+    if (Array.isArray(tbl) && tbl.length) {
+      const idx = Math.min(Math.max(0, Math.round(num(year) || 1) - 1), tbl.length - 1);
+      const v = tbl[idx];
+      if (v !== null && v !== undefined && num(v) > 0) return num(v);
+    }
+    return num(r.direct) * escFactor(year);
+  };
+  const loadedYr = (lcat: string, year: number): number => {
+    const r = rateMap[lcat];
+    return r ? directOfYr(r, year) * wrapMult : 0;
+  };
   const loaded: Record<string, number> = {};
-  for (const r of s.rates) {
-    loaded[r.lcat] = num(r.direct) * (1 + fringe) * (1 + oh) * (1 + gna);
-  }
+  for (const r of s.rates) loaded[r.lcat] = num(r.direct) * wrapMult;
 
-  // Archetypes -> cost per team-sprint (Yr1), velocity, team counts
+  // Archetypes -> cost per team-sprint (Yr1 for display/tiers), per-year via cpsYr
   const archMap: Record<string, ArchetypeDerived> = {};
   for (const a of s.archetypes) {
     let cps = 0;
@@ -76,6 +140,17 @@ export function compute(s: Pursuit): ComputeResult {
     cps *= num(c.productiveHrs);
     archMap[a.name] = { vel: num(a.velocity), teams: num(a.teams), cps, fte };
   }
+  const cpsYrCache: Record<string, number> = {};
+  const cpsYr = (archName: string, year: number): number => {
+    const key = archName + '|' + year;
+    if (key in cpsYrCache) return cpsYrCache[key];
+    const a = s.archetypes.find((x) => x.name === archName);
+    let cps = 0;
+    if (a) for (const r of s.rates) cps += num((a.hc || {})[r.lcat]) * loadedYr(r.lcat, year);
+    cps *= num(c.productiveHrs);
+    cpsYrCache[key] = cps;
+    return cps;
+  };
   const totalTeams = s.archetypes.reduce((t, a) => t + num(a.teams), 0);
   const wsPoP = (num(c.workingSprintsYr) * progMonths) / 12;
   const totalCapacity = wsPoP * totalTeams;
@@ -126,7 +201,7 @@ export function compute(s: Pursuit): ComputeResult {
     const denom = a.vel * rm * autoF;
     const sp50 = denom ? effP50 / denom : 0;
     const sp80 = denom ? effP80 / denom : 0;
-    const cpse = a.cps * escF(py, esc);
+    const cpse = cpsYr(b.archetype, py);
     const lp50 = sp50 * cpse;
     const lp80 = sp80 * cpse;
     sumSprP50 += sp50;
@@ -152,53 +227,56 @@ export function compute(s: Pursuit): ComputeResult {
   const capSubP50 = Object.values(capLaborP50).reduce((a, b) => a + b, 0);
   const capSubP80 = Object.values(capLaborP80).reduce((a, b) => a + b, 0);
 
-  // Persistent LOE
+  // Persistent LOE, accumulated per contract period
   let loeTot = 0;
-  let loeP1 = 0;
-  let loeP2 = 0;
+  const loeByPeriod = new Array<number>(nP).fill(0);
   const loeRows: LoeDerived[] = [];
   for (const l of s.loe) {
-    const rate = loaded[l.lcat] || 0;
-    const monthly = num(l.fte) * rate * MONTHLY_HOURS * escF(num(l.rateYear), esc);
+    const monthly = num(l.fte) * loadedYr(l.lcat, num(l.rateYear)) * MONTHLY_HOURS;
     const cost = monthly * num(l.months);
     loeTot += cost;
-    if (num(l.phase) === 1) loeP1 += cost;
-    else loeP2 += cost;
+    loeByPeriod[clampPhase(l.phase) - 1] += cost;
     loeRows.push({ ...l, monthly, cost });
   }
+  const loeP1 = loeByPeriod[0] || 0;
+  const loeP2 = loeTot - loeP1;
 
   // Program-support labor (PM office, finance, contracts) — distinct from sprint teams and ops LOE
   const includePS = c.includePSupport !== false;
   let psTot = 0;
-  let psP1 = 0;
-  let psP2 = 0;
+  const psByPeriod = new Array<number>(nP).fill(0);
   const psRows: PSupportDerived[] = [];
   for (const p of s.psupport || []) {
-    const rate = loaded[p.lcat] || 0;
-    const monthly = num(p.fte) * rate * MONTHLY_HOURS * escF(num(p.rateYear), esc);
+    const monthly = num(p.fte) * loadedYr(p.lcat, num(p.rateYear)) * MONTHLY_HOURS;
     const cost = monthly * num(p.months) * (includePS ? 1 : 0);
     psTot += cost;
-    if (num(p.phase) === 1) psP1 += cost;
-    else psP2 += cost;
+    psByPeriod[clampPhase(p.phase) - 1] += cost;
     psRows.push({ ...p, monthly, cost });
   }
+  const psP1 = psByPeriod[0] || 0;
+  const psP2 = psTot - psP1;
 
-  // ODC: year columns escalated by year index, plus material handling
+  // ODC: year columns escalated by year index, plus material handling.
+  // 'year' phasing allocates each program year to the period containing its
+  // start month; 'row' phasing uses the row's period directly.
   const yearsN = Math.max(1, Math.ceil(progMonths / 12));
+  const periodOfMonth = (m: number): number => {
+    for (let i = nP - 1; i >= 0; i--) if (m >= periodStart[i]) return i;
+    return 0;
+  };
   const odcPhasing = c.odcPhasing === 'row' ? 'row' : 'year';
   const odcRows: OdcDerived[] = [];
+  const odcByPeriodRaw = new Array<number>(nP).fill(0);
   let odcEsc = 0;
-  let odcYr1 = 0;
-  let odcP1raw = 0;
   let odcDropped = 0;
   for (const o of s.odc) {
     let escTotal = 0;
     const yrs = o.years || [];
     for (let y = 0; y < yearsN; y++) {
-      const v = num(yrs[y]);
-      escTotal += v * Math.pow(1 + esc, y);
-      if (y === 0) odcYr1 += v;
-      if (num(o.phase) === 1) odcP1raw += v * Math.pow(1 + esc, y);
+      const v = num(yrs[y]) * escFactor(y + 1);
+      escTotal += v;
+      const pi = odcPhasing === 'row' ? clampPhase(o.phase) - 1 : periodOfMonth(y * 12);
+      odcByPeriodRaw[pi] += v;
     }
     for (let y = yearsN; y < yrs.length; y++) {
       if (num(yrs[y]) !== 0) odcDropped += num(yrs[y]);
@@ -208,7 +286,8 @@ export function compute(s: Pursuit): ComputeResult {
     odcRows.push({ ...o, escTotal, withH });
   }
   const odcTot = odcEsc * (1 + num(c.gnaODC));
-  const odcP1 = (odcPhasing === 'row' ? odcP1raw : odcYr1) * (1 + num(c.gnaODC));
+  const odcByPeriod = odcByPeriodRaw.map((v) => v * (1 + num(c.gnaODC)));
+  const odcP1 = odcByPeriod[0] || 0;
   const odcP2 = odcTot - odcP1;
 
   const fixedBurden = num(c.fixedBurden);
@@ -242,32 +321,38 @@ export function compute(s: Pursuit): ComputeResult {
         ? 'WELL UNDER: review scope/capacity vs target'
         : 'WITHIN RANGE';
 
-  // Teaming
+  // Teaming: manual sub cost, or bottom-up lines (sub rate × hours) when present
   const subH = num(c.subHandling);
   const subFee = num(c.subFee);
   const teaming: TeamingDerived[] = s.teaming.map((t) => {
-    const handling = num(t.subCost) * subH;
-    const feeOnSub = (num(t.subCost) + handling) * subFee;
-    const price = num(t.subCost) + handling + feeOnSub;
-    return { ...t, handling, feeOnSub, price, share: total ? price / total : 0 };
+    const fromLines = Array.isArray(t.lines) && t.lines.length > 0;
+    const effectiveSubCost = fromLines
+      ? t.lines!.reduce((a, l) => a + num(l.rate) * num(l.hours), 0)
+      : num(t.subCost);
+    const handling = effectiveSubCost * subH;
+    const feeOnSub = (effectiveSubCost + handling) * subFee;
+    const price = effectiveSubCost + handling + feeOnSub;
+    return { ...t, effectiveSubCost, fromLines, handling, feeOnSub, price, share: total ? price / total : 0 };
   });
   const subsSubtotal = teaming.reduce((a, t) => a + t.price, 0);
   const prime = total - subsSubtotal;
   const primeShare = total ? prime / total : 0;
 
-  // Milestone mapping: backlog labor by name; LOE/PS/ODC allocated pro-rata within phase
+  // Milestone mapping: backlog labor by name; LOE/PS/ODC allocated pro-rata
+  // by mapped labor within each contract period
   const laborCol = conf === 'P80' ? msLaborP80 : msLaborP50;
-  const phaseLabor: Record<number, number> = { 1: 0, 2: 0 };
+  const periodLabor = new Array<number>(nP).fill(0);
   for (const m of s.milestones) {
-    phaseLabor[num(m.phase)] += laborCol[m.name] || 0;
+    periodLabor[clampPhase(m.phase) - 1] += laborCol[m.name] || 0;
   }
   const plugMode = c.plugMode === 'perPhase' || c.plugMode === 'largest' ? c.plugMode : 'last';
   const msCost = s.milestones.map((m) => {
-    const ph = num(m.phase) as 1 | 2;
+    const ph = clampPhase(m.phase);
     const g = laborCol[m.name] || 0;
-    const loeAlloc = phaseLabor[ph] ? ((ph === 1 ? loeP1 : loeP2) * g) / phaseLabor[ph] : 0;
-    const psAlloc = phaseLabor[ph] ? ((ph === 1 ? psP1 : psP2) * g) / phaseLabor[ph] : 0;
-    const odcAlloc = phaseLabor[ph] ? ((ph === 1 ? odcP1 : odcP2) * g) / phaseLabor[ph] : 0;
+    const pl = periodLabor[ph - 1];
+    const loeAlloc = pl ? (loeByPeriod[ph - 1] * g) / pl : 0;
+    const psAlloc = pl ? (psByPeriod[ph - 1] * g) / pl : 0;
+    const odcAlloc = pl ? (odcByPeriod[ph - 1] * g) / pl : 0;
     const fx = num(m.fixed) * (1 + fixedBurden);
     return { m, ph, g, loeAlloc, psAlloc, odcAlloc, fixed: fx, cost: fx + g + loeAlloc + psAlloc + odcAlloc };
   });
@@ -289,8 +374,8 @@ export function compute(s: Pursuit): ComputeResult {
     });
     if (prices.length) prices[li] += resid;
   } else {
-    // perPhase: each phase ties to its own cost*grossup; the last milestone in the phase carries that phase's residual
-    for (const ph of [1, 2]) {
+    // perPhase: each period ties to its own cost*grossup; the last milestone in the period carries that period's residual
+    for (let ph = 1; ph <= nP; ph++) {
       const idx = msCost.map((x, i) => (x.ph === ph ? i : -1)).filter((i) => i >= 0);
       if (!idx.length) continue;
       const phaseTarget = idx.reduce((a, i) => a + msCost[i].cost, 0) * grossup;
@@ -318,8 +403,16 @@ export function compute(s: Pursuit): ComputeResult {
     threshold: x.m.threshold,
     gated: x.m.gated,
   }));
-  const phase1Price = msRows.filter((r) => r.phase === 1).reduce((a, r) => a + r.price, 0);
-  const phase2Price = msRows.filter((r) => r.phase === 2).reduce((a, r) => a + r.price, 0);
+  const periodPrices = new Array<number>(nP).fill(0);
+  for (const r of msRows) periodPrices[r.phase - 1] += r.price;
+  const periodsOut: PeriodDerived[] = periods.map((p, i) => ({
+    ...p,
+    index: i + 1,
+    startMonth: periodStart[i],
+    price: periodPrices[i],
+  }));
+  const phase1Price = periodPrices[0] || 0;
+  const phase2Price = periodPrices.slice(1).reduce((a, b) => a + b, 0);
   const msPriceTotal = msRows.reduce((a, r) => a + r.price, 0);
   const minMsPrice = msRows.length ? Math.min(...msRows.map((r) => r.price)) : 0;
 
@@ -383,7 +476,7 @@ export function compute(s: Pursuit): ComputeResult {
     let termPrice = 0;
     const years: TierDerived['years'] = [];
     for (let y = 1; y <= optionYears; y++) {
-      const f = Math.pow(1 + esc, y - 1);
+      const f = escFactor(y);
       const ac = costPeriod * periodsPerYear * f;
       const ap = pricePeriod * periodsPerYear * f;
       years.push({ year: y, annualCost: ac, annualPrice: ap });
@@ -422,21 +515,21 @@ export function compute(s: Pursuit): ComputeResult {
     tiers: tierRows,
   };
 
-  // Funding by federal fiscal year (Oct-Sep) and color of money (reads off the milestone schedule)
+  // Funding by federal fiscal year (Oct-Sep) and color of money — color comes
+  // from the contract period each milestone belongs to
   const ps = new Date((c.popStart || '2026-01-01') + 'T00:00:00');
-  const colP1 = c.colorPhase1 || 'RDT&E';
-  const colP2 = c.colorPhase2 || 'RDT&E';
+  const colorOfPhase = (ph: number) => String(periods[ph - 1]?.color || 'RDT&E');
   const fundByFY: Record<number, { total: number; byColor: Record<string, number> }> = {};
   for (const r of msRows) {
     const d = new Date(ps);
     d.setMonth(d.getMonth() + r.monthOffset);
     const fy = d.getMonth() >= 9 ? d.getFullYear() + 1 : d.getFullYear();
-    const color = r.phase === 1 ? colP1 : colP2;
+    const color = colorOfPhase(r.phase);
     fundByFY[fy] = fundByFY[fy] || { total: 0, byColor: {} };
     fundByFY[fy].byColor[color] = (fundByFY[fy].byColor[color] || 0) + r.price;
     fundByFY[fy].total += r.price;
   }
-  const fundingColors = [...new Set(msRows.map((r) => (r.phase === 1 ? colP1 : colP2)))];
+  const fundingColors = [...new Set(msRows.map((r) => colorOfPhase(r.phase)))];
   const fundingRows: FundingRow[] = Object.keys(fundByFY)
     .map(Number)
     .sort((a, b) => a - b)
@@ -446,7 +539,7 @@ export function compute(s: Pursuit): ComputeResult {
     cum += f.total;
     f.cumulative = cum;
   }
-  const funding = { rows: fundingRows, colors: fundingColors, colorPhase1: colP1, colorPhase2: colP2 };
+  const funding = { rows: fundingRows, colors: fundingColors };
 
   // Demand (sprints needed) vs funded capacity, overall and by PI year
   const surge = c.surgeProfile || {};
@@ -552,9 +645,9 @@ export function compute(s: Pursuit): ComputeResult {
     },
     {
       n: 2,
-      label: 'Phase split ties to Total Price',
-      val: round0(phase1Price + phase2Price - total),
-      ok: Math.abs(round0(phase1Price + phase2Price - total)) <= 1,
+      label: 'Period split ties to Total Price',
+      val: round0(periodPrices.reduce((a, b) => a + b, 0) - total),
+      ok: Math.abs(round0(periodPrices.reduce((a, b) => a + b, 0) - total)) <= 1,
     },
     {
       n: 3,
@@ -668,6 +761,8 @@ export function compute(s: Pursuit): ComputeResult {
     prime,
     primeShare,
     msRows,
+    periods: periodsOut,
+    periodPrices,
     phase1Price,
     phase2Price,
     msPriceTotal,

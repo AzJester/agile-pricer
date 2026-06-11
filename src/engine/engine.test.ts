@@ -107,8 +107,7 @@ describe('engine mechanics', () => {
 
   it('ODC beyond the program year count is flagged as dropped', () => {
     const s = baselineSeed();
-    s.control.baseMonths = 12;
-    s.control.optionMonths = 0; // 1 program year
+    s.control.periods = [{ label: 'Base', months: 12, color: 'RDT&E' }]; // 1 program year
     const r = compute(s);
     expect(r.yearsN).toBe(1);
     expect(r.odcDropped).toBeGreaterThan(0);
@@ -182,6 +181,42 @@ describe('simulation', () => {
     expect(mc.min).toBeGreaterThan(fixedBase);
   });
 
+  it('correlation widens the cost distribution', () => {
+    const mkRand = () => {
+      let state = 99;
+      return () => {
+        state = (state * 1664525 + 1013904223) % 4294967296;
+        return state / 4294967296;
+      };
+    };
+    const indep = baselineSeed();
+    indep.risk = { correlation: 0, sampleVelocity: false };
+    const corr = baselineSeed();
+    corr.risk = { correlation: 0.9, sampleVelocity: false };
+    const a = simulate(indep, 3000, mkRand());
+    const b = simulate(corr, 3000, mkRand());
+    expect(b.std).toBeGreaterThan(a.std * 1.5);
+    // Means stay close: correlation changes spread, not the central estimate.
+    expect(Math.abs(b.mean - a.mean) / a.mean).toBeLessThan(0.05);
+  });
+
+  it('velocity sampling adds spread beyond point sampling alone', () => {
+    const mkRand = () => {
+      let state = 7;
+      return () => {
+        state = (state * 1664525 + 1013904223) % 4294967296;
+        return state / 4294967296;
+      };
+    };
+    const off = baselineSeed();
+    off.risk = { correlation: 0, sampleVelocity: false };
+    const on = baselineSeed();
+    on.risk = { correlation: 0, sampleVelocity: true };
+    const a = simulate(off, 3000, mkRand());
+    const b = simulate(on, 3000, mkRand());
+    expect(b.std).toBeGreaterThan(a.std);
+  });
+
   it('applies the automation curve so trials reconcile with compute()', () => {
     const s = demoSeed(); // automationCurve {2:1.15, 3:1.3}
     let state = 7;
@@ -213,7 +248,149 @@ describe('sensitivity', () => {
   });
 });
 
+describe('contract periods (N-period generalization)', () => {
+  it('three periods reconcile and price per period', () => {
+    const s = baselineSeed();
+    s.control.periods = [
+      { label: 'Base', months: 12, color: 'RDT&E' },
+      { label: 'Option 1', months: 12, color: 'RDT&E' },
+      { label: 'Option 2', months: 12, color: 'O&M' },
+    ];
+    // Move the last two milestones into period 3.
+    s.milestones[s.milestones.length - 1].phase = 3;
+    s.milestones[s.milestones.length - 2].phase = 3;
+    // Point some option-year LOE at period 3.
+    s.loe[3].phase = 3;
+    s.loe[4].phase = 3;
+    const r = compute(s);
+    expect(r.periods.length).toBe(3);
+    expect(r.periodPrices.length).toBe(3);
+    expect(r.periodPrices.every((p) => p > 0)).toBe(true);
+    expect(Math.abs(r.periodPrices.reduce((a, b) => a + b, 0) - r.total)).toBeLessThanOrEqual(1);
+    expect(r.allOk).toBe(true);
+    // Funding colors include the O&M of period 3.
+    expect(r.funding.colors).toContain('O&M');
+  });
+
+  it('perPhase plug ties each of three periods to its own cost basis', () => {
+    const s = baselineSeed();
+    s.control.plugMode = 'perPhase';
+    s.control.periods = [
+      { label: 'Base', months: 12, color: 'RDT&E' },
+      { label: 'Option 1', months: 12, color: 'RDT&E' },
+      { label: 'Option 2', months: 12, color: 'O&M' },
+    ];
+    s.milestones[s.milestones.length - 1].phase = 3;
+    const r = compute(s);
+    expect(Math.abs(r.msPriceTotal - r.total)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('escalation and rate tables', () => {
+  it('escalationByYear of all-equal steps matches the single rate exactly', () => {
+    const s1 = baselineSeed();
+    const s2 = baselineSeed();
+    s2.control.escalationByYear = [0.03, 0.03, 0.03];
+    expect(compute(s2).total).toBeCloseTo(compute(s1).total, 6);
+  });
+
+  it('a higher out-year escalation step raises out-year cost only', () => {
+    const s = baselineSeed();
+    s.control.escalationByYear = [0.03, 0.1, null];
+    const r = compute(s);
+    const base = compute(baselineSeed());
+    expect(r.total).toBeGreaterThan(base.total);
+  });
+
+  it('FPRA directByYear overrides escalated direct for that year', () => {
+    const s = baselineSeed();
+    // Pin Sr Software Engineer at a flat $95 for all three years (no escalation).
+    const sr = s.rates.find((r) => r.lcat === 'Sr Software Engineer')!;
+    sr.directByYear = [95, 95, 95];
+    const r = compute(s);
+    const base = compute(baselineSeed());
+    // Out-year labor priced with the flat table is cheaper than escalated.
+    expect(r.costP50).toBeLessThan(base.costP50);
+    expect(r.allOk).toBe(true);
+  });
+});
+
+describe('bottom-up subcontractor lines', () => {
+  it('lines override the manual sub cost', () => {
+    const s = baselineSeed();
+    s.teaming[0].lines = [
+      { role: 'EW Engineer', rate: 210, hours: 5000 },
+      { role: 'Test', rate: 150, hours: 2000 },
+    ];
+    const r = compute(s);
+    expect(r.teaming[0].fromLines).toBe(true);
+    expect(r.teaming[0].effectiveSubCost).toBeCloseTo(210 * 5000 + 150 * 2000, 6);
+    expect(Math.abs(r.prime + r.subsSubtotal - r.total)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('monthly phasing', () => {
+  it('monthly spread reconciles exactly to the engine cost stack', async () => {
+    const { monthlyPhasing } = await import('./monthly');
+    for (const seed of [baselineSeed, demoSeed]) {
+      const s = seed();
+      const r = compute(s);
+      const m = monthlyPhasing(s, r);
+      const conf = s.control.confidence === 'P80' ? r.capSubP80 : r.capSubP50;
+      expect(m.totals.labor).toBeCloseTo(conf, 4);
+      expect(m.totals.loe).toBeCloseTo(r.loeTot, 4);
+      expect(m.totals.psupport).toBeCloseTo(r.psTot, 4);
+      expect(m.totals.odc).toBeCloseTo(r.odcTot, 4);
+      expect(m.totals.fixed).toBeCloseTo(r.fixedTot, 4);
+      expect(m.totals.total).toBeCloseTo(r.base, 3);
+    }
+  });
+
+  it('staffing FTE is positive while teams are working', async () => {
+    const { monthlyPhasing } = await import('./monthly');
+    const m = monthlyPhasing(baselineSeed());
+    expect(m.months[0].totalFte).toBeGreaterThan(0);
+    expect(Math.max(...m.months.map((x) => x.backlogFte))).toBeGreaterThan(0);
+  });
+});
+
 describe('repair / import validation', () => {
+  it('migrates v1 shape (baseMonths/optionMonths/colorPhase) to periods', () => {
+    const v1 = {
+      name: 'Old Pursuit',
+      control: {
+        baseMonths: 12,
+        optionMonths: 24,
+        colorPhase1: 'RDT&E',
+        colorPhase2: 'O&M',
+        fee: 0.1,
+      },
+      backlog: [],
+    };
+    const p = repairPursuit(v1);
+    expect(p.schemaVersion).toBe(2);
+    expect(p.control.periods).toEqual([
+      { label: 'Base', months: 12, color: 'RDT&E' },
+      { label: 'Option 1', months: 24, color: 'O&M' },
+    ]);
+    expect((p.control as unknown as Record<string, unknown>).baseMonths).toBeUndefined();
+  });
+
+  it('v1 baseline JSON computes the same golden total after migration', () => {
+    const s = baselineSeed();
+    // Reconstruct the v1 control shape.
+    const v1 = JSON.parse(JSON.stringify(s)) as Record<string, any>;
+    delete v1.schemaVersion;
+    delete v1.risk;
+    v1.control.baseMonths = 12;
+    v1.control.optionMonths = 24;
+    v1.control.colorPhase1 = 'RDT&E';
+    v1.control.colorPhase2 = 'RDT&E';
+    delete v1.control.periods;
+    const migrated = repairPursuit(v1);
+    expect(compute(migrated).total).toBeCloseTo(27590172.95, 2);
+  });
+
   it('accepts a valid pursuit and round-trips through repair unchanged in totals', () => {
     const s = baselineSeed();
     const repaired = repairPursuit(JSON.parse(JSON.stringify(s)));
@@ -246,6 +423,7 @@ describe('repair / import validation', () => {
     expect(repaired.control.automationCurve).toEqual({ 2: 1.2 });
     expect(repaired.control.plugMode).toBe('last');
     expect(repaired.velocity.samples).toEqual([40, 38]);
-    expect(repaired.loe[0].phase).toBe(1);
+    // Out-of-range phases clamp to the highest period.
+    expect(repaired.loe[0].phase).toBe(2);
   });
 });

@@ -1,11 +1,17 @@
-import { NumInput, SelectField, TextInput, Toggle } from '../components/inputs';
-import { Callout, Card, Legend, Section } from '../components/ui';
+import { NumCell, NumInput, OptionalNumInput, SelectCell, SelectField, TextCell, TextInput, Toggle } from '../components/inputs';
+import { AddRowButton, Callout, Card, DeleteRowButton, Legend, Note, Section } from '../components/ui';
 import type { ControlInputs } from '../engine';
+import { pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
+import { useResult } from '../state/useResult';
+
+const COLORS = ['RDT&E', 'O&M', 'Procurement', 'Mixed'];
 
 export function Overview() {
   const s = useActivePursuit();
+  const r = useResult();
   const update = useStore((st) => st.updateActive);
+  const showToast = useStore((st) => st.showToast);
   const c = s.control;
 
   const setNum = (key: keyof ControlInputs) => (v: number) =>
@@ -51,10 +57,96 @@ export function Overview() {
             </label>
             <TextInput className="text" type="date" value={c.popStart} onCommit={setStr('popStart')} />
           </div>
-          {numField('Base Period (Phase 1)', 'baseMonths', 'months · ALIN 001 exercised')}
-          {numField('Option Period (Phase 2)', 'optionMonths', 'months · ALIN 002 option')}
         </div>
       </Card>
+      <div className="card flush">
+        <div className="ch">
+          <h3>Contract Periods</h3>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
+            {r.progMonths} months total · {c.periods.length} period{c.periods.length > 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ALIN</th>
+                <th>Period</th>
+                <th className="num">Months</th>
+                <th className="num">Starts (mo.)</th>
+                <th>Color of money</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {c.periods.map((p, i) => (
+                <tr key={i}>
+                  <td className="calc dim">ALIN {String(i + 1).padStart(3, '0')}</td>
+                  <td>
+                    <TextCell
+                      value={p.label}
+                      onCommit={(v) =>
+                        update((x) => {
+                          x.control.periods[i].label = v;
+                        })
+                      }
+                    />
+                  </td>
+                  <td className="num">
+                    <NumCell
+                      value={p.months}
+                      onCommit={(v) =>
+                        update((x) => {
+                          x.control.periods[i].months = Math.max(1, v);
+                        })
+                      }
+                    />
+                  </td>
+                  <td className="num calc dim">{r.periods[i]?.startMonth ?? 0}</td>
+                  <td>
+                    <SelectCell
+                      value={String(p.color)}
+                      options={COLORS.map((o) => ({ value: o }))}
+                      onCommit={(v) =>
+                        update((x) => {
+                          x.control.periods[i].color = v;
+                        })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <DeleteRowButton
+                      title="Remove this period"
+                      onClick={() => {
+                        if (c.periods.length <= 1) {
+                          showToast('Keep at least one period');
+                          return;
+                        }
+                        update((x) => {
+                          x.control.periods.splice(i, 1);
+                        });
+                      }}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <AddRowButton
+          label="Add option period"
+          onClick={() =>
+            update((x) => {
+              x.control.periods.push({ label: `Option ${x.control.periods.length}`, months: 12, color: 'O&M' });
+            })
+          }
+        />
+        <Note style={{ margin: '0 16px 14px' }}>
+          Each period is its own ALIN and funding action. Milestones, LOE, program support, and row-phased ODC reference a
+          period by number; the milestone schedule, funding view, and exports group by period. Removing a period re-clamps
+          rows that pointed at it to the last remaining period.
+        </Note>
+      </div>
       <Card title="Cadence & Capacity">
         <div className="cgrid">
           {numField('Sprint length', 'sprintLengthWeeks', 'weeks')}
@@ -71,6 +163,37 @@ export function Overview() {
           {numField('Fee / margin (OT)', 'fee', 'negotiated margin on cost')}
           {numField('Escalation / year', 'escalation', 'labor & ODC, compounded by PI year')}
           {numField('Subcontractor handling fee', 'subHandling', 'prime handling on sub cost')}
+        </div>
+        <div className="field" style={{ display: 'block', borderBottom: 0 }}>
+          <label>
+            Escalation overrides by year
+            <span className="hint">
+              optional per-year steps (Yr1→Yr2 first); blank = use the {pct(c.escalation)} default
+            </span>
+          </label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+            {Array.from({ length: Math.max(1, r.yearsN - 1) }, (_, y) => (
+              <div key={y} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span className="hint">
+                  Yr{y + 1}→{y + 2}
+                </span>
+                <OptionalNumInput
+                  style={{ width: 90 }}
+                  step={0.005}
+                  placeholder={String(c.escalation)}
+                  value={c.escalationByYear?.[y] ?? ''}
+                  onCommit={(v) =>
+                    update((x) => {
+                      const cur = Array.isArray(x.control.escalationByYear) ? [...x.control.escalationByYear] : [];
+                      while (cur.length < y + 1) cur.push(null);
+                      cur[y] = v;
+                      x.control.escalationByYear = cur.some((e) => e !== null) ? cur : undefined;
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
       <Card title="Confidence, Reserve & Targets">

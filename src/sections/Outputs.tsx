@@ -8,7 +8,7 @@ export function Mps() {
   const s = useActivePursuit();
   const r = useResult();
 
-  const phaseBlock = (phase: 1 | 2, title: string) => {
+  const phaseBlock = (phase: number, title: string) => {
     const list = r.msRows.filter((row) => row.phase === phase);
     if (!list.length) return null;
     const subNames = s.teaming.map((t) => t.party);
@@ -66,20 +66,32 @@ export function Mps() {
   return (
     <Section
       title="Milestone Payment Schedule"
-      sub="Customer-facing (Attachment 10 format). Reserve is embedded in milestone prices via the gross-up, not shown as a line. ALIN 001 is the exercised base; ALIN 002 is the option."
+      sub="Customer-facing (Attachment 10 format). Reserve is embedded in milestone prices via the gross-up, not shown as a line. Each contract period is its own ALIN; ALIN 001 is the exercised base."
       actions={
         <button type="button" className="tbtn solid" onClick={() => exportMpsCsv(s, r)}>
           Export CSV
         </button>
       }
     >
-      <div className="resgrid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: 18 }}>
-        <Stat k="ALIN 001 — FFP, Exercised" v={money0(r.phase1Price)} />
-        <Stat k="ALIN 002 — FFP, Option" v={money0(r.phase2Price)} />
+      <div
+        className="resgrid"
+        style={{ gridTemplateColumns: `repeat(${Math.min(4, r.periods.length + 1)},1fr)`, marginBottom: 18 }}
+      >
+        {r.periods.map((p) => (
+          <Stat
+            key={p.index}
+            k={`ALIN ${String(p.index).padStart(3, '0')} — FFP, ${p.index === 1 ? 'Exercised' : 'Option'}`}
+            v={money0(p.price)}
+          />
+        ))}
         <Stat k="Total Agreement" v={money0(r.total)} />
       </div>
-      {phaseBlock(1, 'Phase 1 — ALIN 001 (Exercised)')}
-      {phaseBlock(2, 'Phase 2 — ALIN 002 (Option)')}
+      {r.periods.map((p) =>
+        phaseBlock(
+          p.index,
+          `${p.label} — ALIN ${String(p.index).padStart(3, '0')} (${p.index === 1 ? 'Exercised' : 'Option'})`,
+        ),
+      )}
     </Section>
   );
 }

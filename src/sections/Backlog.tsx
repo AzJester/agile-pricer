@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { BacklogImportDialog } from '../components/BacklogImportDialog';
 import { NumCell, SelectCell, TextCell } from '../components/inputs';
 import { AddRowButton, Callout, DeleteRowButton, Section, TipBox } from '../components/ui';
 import type { BacklogItem } from '../engine';
@@ -9,6 +11,7 @@ export function Backlog() {
   const s = useActivePursuit();
   const r = useResult();
   const update = useStore((st) => st.updateActive);
+  const [importing, setImporting] = useState(false);
 
   const set = (i: number, key: keyof BacklogItem, v: string | number) =>
     update((p) => {
@@ -22,7 +25,13 @@ export function Backlog() {
     <Section
       title="Backlog"
       sub="Scope decomposition with three-point sizing. Expected uses PERT = (Low + 4×Likely + High) / 6; SD = (High − Low) / 6. The Milestone name must match a row on the Milestones tab so labor maps to a payable event."
+      actions={
+        <button type="button" className="tbtn solid" onClick={() => setImporting(true)}>
+          Import / Paste (Jira · ADO · Excel)
+        </button>
+      }
     >
+      {importing && <BacklogImportDialog onClose={() => setImporting(false)} />}
       {unmatched && (
         <Callout>
           Some backlog milestone names don't exist in the Milestones table. Unmatched labor won't map to a payable milestone.
