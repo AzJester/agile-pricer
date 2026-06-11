@@ -29,7 +29,18 @@ export interface WaterfallStep {
   total?: boolean;
 }
 
-export function Waterfall({ steps, w = 620, h = 240 }: { steps: WaterfallStep[]; w?: number; h?: number }) {
+export function Waterfall({
+  steps,
+  w = 620,
+  h = 240,
+  onStepClick,
+}: {
+  steps: WaterfallStep[];
+  w?: number;
+  h?: number;
+  /** Makes the bars drill-through targets (pointer cursor + click). */
+  onStepClick?: (step: WaterfallStep) => void;
+}) {
   const pad = { l: 8, r: 8, t: 24, b: 46 };
   const iw = w - pad.l - pad.r;
   const ih = h - pad.t - pad.b;
@@ -50,8 +61,18 @@ export function Waterfall({ steps, w = 620, h = 240 }: { steps: WaterfallStep[];
         const bot = y(Math.min(p.start, p.end));
         const col = p.total ? CHART_COLORS.force : p.delta >= 0 ? CHART_COLORS.sky : CHART_COLORS.twilight;
         return (
-          <g key={i}>
-            <rect x={x} y={top} width={bw} height={Math.max(2, bot - top)} rx={2} fill={col} />
+          <g
+            key={i}
+            onClick={onStepClick ? () => onStepClick(p) : undefined}
+            style={onStepClick ? { cursor: 'pointer' } : undefined}
+          >
+            <rect x={x} y={top} width={bw} height={Math.max(2, bot - top)} rx={2} fill={col}>
+              <title>
+                {p.total
+                  ? `${p.label}: ${money0(Math.round(p.end))}`
+                  : `${p.label}: ${p.delta >= 0 ? '+' : '−'}${money0(Math.abs(Math.round(p.delta)))} → running ${money0(Math.round(p.end))}`}
+              </title>
+            </rect>
             <text x={x + bw / 2} y={top - 5} fontSize={9.5} textAnchor="middle" fill="#555">
               {'$' + fmt0(Math.round(p.end))}
             </text>
@@ -77,6 +98,7 @@ export function StackedBars({
   w = 620,
   h = 240,
   fmtY = (v: number) => '$' + Math.round(v / 1e6) + 'M',
+  onBarClick,
 }: {
   rows: StackedRow[];
   keys: string[];
@@ -84,6 +106,8 @@ export function StackedBars({
   w?: number;
   h?: number;
   fmtY?: (v: number) => string;
+  /** Makes the bars drill-through targets (pointer cursor + click). */
+  onBarClick?: (row: StackedRow) => void;
 }) {
   const pad = { l: 54, r: 8, t: 16, b: 42 };
   const iw = w - pad.l - pad.r;
@@ -112,7 +136,11 @@ export function StackedBars({
           let yc = pad.t + ih;
           const x = pad.l + gap * i + (gap - bw) / 2;
           return (
-            <g key={i}>
+            <g
+              key={i}
+              onClick={onBarClick ? () => onBarClick(r) : undefined}
+              style={onBarClick ? { cursor: 'pointer' } : undefined}
+            >
               {keys.map((k, ki) => {
                 const v = r.values[k] || 0;
                 if (v <= 0) return null;
@@ -121,11 +149,16 @@ export function StackedBars({
                 return (
                   <rect key={k} x={x} y={yc} width={bw} height={hh} fill={colors[ki]}>
                     <title>
-                      {k}: {money0(Math.round(v))}
+                      {r.label} · {k}: {money0(Math.round(v))}
                     </title>
                   </rect>
                 );
               })}
+              {totals[i] > 0 && (
+                <text x={x + bw / 2} y={y(totals[i]) - 4} fontSize={9} textAnchor="middle" fill="#555">
+                  {'$' + fmt0(Math.round(totals[i]))}
+                </text>
+              )}
               <text x={x + bw / 2} y={h - pad.b + 14} fontSize={10} textAnchor="middle" fill={CHART_COLORS.ink}>
                 {r.label}
               </text>

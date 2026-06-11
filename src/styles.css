@@ -818,3 +818,38 @@ td.calc.dim {
   border-color: var(--twilight);
   color: #fff;
 }
+
+/* Dashboard drill-through rows (milestone cash flow) */
+.dashrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 3px 4px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.dashrow:hover,
+.dashrow:focus-visible {
+  background: #f1effa;
+}
+.dashrow:hover .dashbar i,
+.dashrow:focus-visible .dashbar i {
+  background: var(--sky);
+}
+.dashbar {
+  flex: 1;
+  background: #eef;
+  border-radius: 4px;
+}
+.dashbar i {
+  display: block;
+  background: var(--force);
+  height: 14px;
+  border-radius: 4px;
+}
