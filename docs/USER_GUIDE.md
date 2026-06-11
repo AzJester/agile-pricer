@@ -78,7 +78,7 @@ The fastest path to a real bid is to duplicate a sample (top bar → **Duplicate
 Set the global assumptions:
 
 - **Contract Periods**: the base period and however many option periods the contract has. Each period gets a label, a length in months, and a color of money (RDT&E, O&M, …). Every other part of the model (milestones, support labor, funding) hangs off these periods. Add periods with **+ Add option period**.
-- **Cadence**: sprint length, productive hours per sprint per person, working sprints per year.
+- **Cadence**: productive hours per sprint per person and working sprints per year — these two drive capacity. (Sprint length in weeks is descriptive only and is not an input.)
 - **Wrap rates and economics**: fringe, overhead, G&A, fee, escalation. If different years escalate differently, fill in the per-year override boxes.
 - **Confidence, reserve and targets**: P50 vs P80, reserve method, the customer's budget ceiling, and milestone rounding.
 
