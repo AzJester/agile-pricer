@@ -7,17 +7,18 @@ import { readFileSync } from 'node:fs';
  * Escape-cancels-edit contract.
  */
 
-test('toolbar exports download JSON, portfolio, Excel, and Word files', async ({ page }) => {
+test('Export menu downloads JSON, portfolio, Excel, and Word files', async ({ page }) => {
   await page.goto('/');
   const cases = [
-    ['Export', /\.json$/],
-    ['Portfolio', /\.json$/],
-    ['Excel', /_Pricing\.xlsx$/],
-    ['Word', /_Pricing\.docx$/],
+    ['Pursuit JSON', /\.json$/],
+    ['Portfolio JSON (all pursuits)', /\.json$/],
+    ['Excel workbook (live formulas)', /_Pricing\.xlsx$/],
+    ['Word document (proposal extract)', /_Pricing\.docx$/],
   ] as const;
   for (const [name, pattern] of cases) {
+    await page.getByRole('button', { name: 'Export ▾' }).click();
     const waiting = page.waitForEvent('download');
-    await page.getByRole('button', { name, exact: true }).click();
+    await page.getByRole('menuitem', { name }).click();
     const download = await waiting;
     expect(download.suggestedFilename()).toMatch(pattern);
   }
@@ -39,8 +40,9 @@ test('milestone names cannot smuggle formulas into the MPS CSV', async ({ page }
 
 test('exported pursuit JSON re-imports through the toolbar', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Export ▾' }).click();
   const waiting = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Pursuit JSON' }).click();
   const download = await waiting;
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Import', exact: true }).click();
@@ -63,7 +65,8 @@ test('rates CSV import handles quoted LCATs with commas', async ({ page }) => {
 
 test('snapshots: take, list, and restore as a new pursuit', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Snapshots' }).click();
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: 'Snapshots…' }).click();
   await page.getByRole('button', { name: 'Take snapshot' }).click();
   await page.getByRole('button', { name: 'OK', exact: true }).click(); // accept default name
   await expect(page.locator('.dialog b').filter({ hasText: 'as-submitted' })).toBeVisible();
@@ -213,9 +216,23 @@ test('no text is truncated anywhere in the app', async ({ page }) => {
   await audit('import dialog');
 });
 
+test('Ctrl+K palette jumps to a section; sticky table anchors are active', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('main h2').first().waitFor(); // listener mounts with React
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder(/Jump to section/).fill('rates');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('main h2').first()).toHaveText('Labor Rates');
+  // Sticky anchors: header row and first column survive scrolling.
+  const th = page.locator('.tablewrap thead th').first();
+  await expect(th).toHaveCSS('position', 'sticky');
+  await expect(page.locator('.tablewrap tbody td').first()).toHaveCSS('position', 'sticky');
+});
+
 test('Escape closes the snapshots dialog', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Snapshots' }).click();
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: 'Snapshots…' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);

@@ -343,7 +343,7 @@ export function ScenarioCompare() {
       sub="Every saved pursuit side by side. Duplicate a pursuit (top bar), change one assumption, and read the deltas here without losing the original. Pin one column as the baseline to see dollar deltas against it."
     >
       <TipBox>
-        Duplicate a pursuit (top bar), change one assumption, and read the deltas here. Pin a column as the baseline to track dollar movement — handy against an as-submitted snapshot restored as a copy.
+        Duplicate a pursuit (⋯ menu, top bar), change one assumption, and read the deltas here. Pin a column as the baseline to track dollar movement — handy against an as-submitted snapshot restored as a copy.
       </TipBox>
       <div className="card flush">
         <div className="ch">

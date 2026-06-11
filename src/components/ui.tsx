@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
 
 export function Section(props: { title: string; sub?: ReactNode; actions?: ReactNode; children: ReactNode }) {
@@ -108,4 +108,71 @@ export function DeleteRowButton(props: { onClick: () => void; title?: string }) 
   // announces an empty button.
   const name = props.title ?? 'Remove row';
   return <button type="button" className="rowdel" title={name} aria-label={name} onClick={props.onClick} />;
+}
+
+export type MenuItem = { label: ReactNode; onClick: () => void; danger?: boolean } | 'sep';
+
+/** Toolbar dropdown: closes on outside click, Escape, or item selection. */
+export function MenuButton(props: {
+  label: ReactNode;
+  title?: string;
+  /** Accessible name when the visible label is a glyph (e.g. "⋯"). */
+  ariaLabel?: string;
+  className?: string;
+  items: MenuItem[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div className="menuwrap" ref={ref}>
+      <button
+        type="button"
+        className={props.className ?? 'tbtn'}
+        title={props.title}
+        aria-label={props.ariaLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {props.label}
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          {props.items.map((it, i) =>
+            it === 'sep' ? (
+              <div key={i} className="msep" />
+            ) : (
+              <button
+                key={i}
+                type="button"
+                role="menuitem"
+                className={'mitem' + (it.danger ? ' danger' : '')}
+                onClick={() => {
+                  setOpen(false);
+                  it.onClick();
+                }}
+              >
+                {it.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

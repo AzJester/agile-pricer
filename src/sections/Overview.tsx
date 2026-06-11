@@ -39,7 +39,7 @@ export function Overview() {
       sub="Global switches and assumptions. These drive every downstream sheet: rates, capacity, escalation, reserve, fee, and the milestone payment schedule. Edit the blue values."
     >
       <TipBox>
-        Set this tab up first — periods, cadence, wrap rates, reserve method — because every other tab prices against it. Exploring a what-if? <b>Duplicate</b> the pursuit (top bar) and edit the copy; Scenario Compare shows the deltas side by side, and Undo (Ctrl+Z) reverses any edit.
+        Set this tab up first — periods, cadence, wrap rates, reserve method — because every other tab prices against it. Exploring a what-if? <b>Duplicate</b> the pursuit (⋯ menu, top bar) and edit the copy; Scenario Compare shows the deltas side by side, and Undo (Ctrl+Z) reverses any edit.
       </TipBox>
       <Callout>
         <b>Reusable across pursuits.</b> Start from the reference baseline or create a blank pursuit (New). Each pursuit saves
