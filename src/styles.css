@@ -853,3 +853,16 @@ td.calc.dim {
   height: 14px;
   border-radius: 4px;
 }
+
+/* Dashboard two-column layout: cards pair up on wide screens, stack on narrow */
+.dashgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+  column-gap: 18px;
+  align-items: start;
+}
+@media print {
+  .dashgrid {
+    grid-template-columns: 1fr;
+  }
+}

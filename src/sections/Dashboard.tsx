@@ -1,7 +1,9 @@
-import { colorForMoney, StackedBars, Waterfall } from '../components/charts';
+import { useMemo } from 'react';
+import { AreaLine, colorForMoney, StackedBars, Waterfall } from '../components/charts';
 import { Callout, Card, Note, Pill, Section, Stat, utilTone, TipBox } from '../components/ui';
+import { monthlyPhasing } from '../engine';
 import { exportFundingCsv } from '../export/csv';
-import { addMonths, money0, pct } from '../lib/format';
+import { addMonths, fmt0, money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
 
@@ -32,6 +34,23 @@ function Jump(props: { to: string; title: string; children: React.ReactNode }) {
   );
 }
 
+/** Route an advisory to the screen that fixes it, keyed off its wording. */
+function advisoryTarget(msg: string): { tab: string; label: string } {
+  const rules: [RegExp, string, string][] = [
+    [/capacity reserve/i, 'velocity', 'Velocity & Reserve'],
+    [/utilization/i, 'phasing', 'Time-Phasing'],
+    [/effective reserve/i, 'velocity', 'Velocity & Reserve'],
+    [/budget ceiling/i, 'overview', 'Overview'],
+    [/ODC/, 'odc', 'Other Direct Costs'],
+    [/milestone price/i, 'milestones', 'Milestones'],
+    [/velocity has fewer|historical sample/i, 'velocity', 'Velocity & Reserve'],
+    [/rate.*basis|documented basis/i, 'rates', 'Labor Rates'],
+    [/tier/i, 'capacity', 'Capacity Tiers'],
+  ];
+  for (const [re, tab, label] of rules) if (re.test(msg)) return { tab, label };
+  return { tab: 'checks', label: 'Integrity Checks' };
+}
+
 function FlagsBanner() {
   const r = useResult();
   if (!r.flags.length) {
@@ -43,13 +62,24 @@ function FlagsBanner() {
   }
   return (
     <div className="card" style={{ borderLeft: '4px solid var(--supernova)' }}>
-      <div className="cb" style={{ padding: '12px 16px' }}>
-        {r.flags.map((f, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', margin: '4px 0' }}>
-            <Pill tone={f.sev === 'bad' ? 'bad' : 'warn'}>{f.sev === 'bad' ? 'CHECK' : 'NOTE'}</Pill>
-            <span style={{ fontSize: 13 }}>{f.msg}</span>
-          </div>
-        ))}
+      <div className="cb" style={{ padding: '8px 12px' }}>
+        {r.flags.map((f, i) => {
+          const target = advisoryTarget(f.msg);
+          return (
+            <button
+              key={i}
+              type="button"
+              className="dashrow"
+              style={{ alignItems: 'flex-start' }}
+              title={`Open ${target.label} to address this`}
+              onClick={() => go(target.tab)}
+            >
+              <Pill tone={f.sev === 'bad' ? 'bad' : 'warn'}>{f.sev === 'bad' ? 'CHECK' : 'NOTE'}</Pill>
+              <span style={{ fontSize: 13, flex: 1, textAlign: 'left' }}>{f.msg}</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{target.label} →</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -74,6 +104,11 @@ export function Dashboard() {
   // One gutter width for all cash-flow labels (ch ≈ one character at 11px),
   // capped so very long names wrap to a second line rather than truncate.
   const cfLabelCh = Math.min(Math.max(...r.msRows.map((m) => m.name.length), 10) + 1, 34);
+  const fails = r.checks.filter((c) => !c.ok).length;
+  // Cumulative expenditure curve from the monthly phasing engine.
+  const spendCurve = useMemo(() => monthlyPhasing(s, r).months.map((m) => m.cumulative), [s, r]);
+  const topDrivers = useMemo(() => [...r.boeCaps].sort((a, b) => b.price - a.price).slice(0, 4), [r]);
+  const topMax = Math.max(...topDrivers.map((b) => b.price), 1);
 
   return (
     <Section
@@ -91,7 +126,7 @@ export function Dashboard() {
         exact figure. Chase anything amber or red back to its source tab — the advisory text names it.
       </TipBox>
       <FlagsBanner />
-      <div className="resgrid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
+      <div className="resgrid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
         <Jump to="results" title="Open Pricing Results">
           <Stat hero k={`Total Price (${s.control.confidence})`} v={money0(r.total)} sub={`Gross-up ${r.grossup.toFixed(3)}×`} />
         </Jump>
@@ -131,8 +166,15 @@ export function Dashboard() {
             }
           />
         </Jump>
+        <Jump to="checks" title="Open Integrity Checks">
+          <Stat
+            k="Integrity"
+            v={<Pill tone={r.allOk ? 'ok' : 'bad'}>{r.allOk ? 'ALL OK' : `${fails} FAIL`}</Pill>}
+            sub={r.flags.length ? `${r.flags.length} advisor${r.flags.length > 1 ? 'ies' : 'y'}` : 'no advisories'}
+          />
+        </Jump>
       </div>
-      <div style={{ marginTop: 18 }}>
+      <div className="dashgrid" style={{ marginTop: 18 }}>
         <Card title="Cost-to-Price Waterfall">
           <Waterfall
             onStepClick={() => go('results')}
@@ -145,8 +187,42 @@ export function Dashboard() {
             ]}
           />
         </Card>
-      </div>
-      <Card title="Milestone Cash Flow">
+        <Card title="Funding by Fiscal Year (color of money)">
+          {r.funding.rows.length ? fundingChart(r, () => go('funding')) : <div className="sub">No milestone payments to schedule.</div>}
+        </Card>
+        <Card title="Cumulative Expenditure (cost basis)">
+          <Jump to="staffing" title="Open Cost Phasing & Staffing">
+            <AreaLine values={spendCurve} label="Cumulative expenditure by month" />
+          </Jump>
+        </Card>
+        <Card title="Demand vs Funded Capacity by Year">
+          {r.demand.byYear.map((yr) => (
+            <button
+              key={yr.year}
+              type="button"
+              className="dashrow"
+              title={`Year ${yr.year}: ${fmt0(yr.needed)} sprints needed of ${fmt0(yr.funded)} funded (${pct(yr.util)}) · click for time-phasing`}
+              onClick={() => go('phasing')}
+            >
+              <span style={{ width: '8ch', fontSize: 11, color: 'var(--muted)', textAlign: 'right', flexShrink: 0 }}>
+                Yr {yr.year}
+              </span>
+              <span className="dashbar">
+                <i
+                  style={{
+                    width: `${Math.min(100, (yr.funded ? yr.needed / yr.funded : 0) * 100).toFixed(1)}%`,
+                    background: yr.util > 1.05 ? 'var(--twilight)' : undefined,
+                  }}
+                />
+              </span>
+              <span className="mono" style={{ width: 130, fontSize: 11, textAlign: 'right', flexShrink: 0 }}>
+                {fmt0(yr.needed)} / {fmt0(yr.funded)} spr · {pct(yr.util, 0)}
+              </span>
+            </button>
+          ))}
+          <Note style={{ marginTop: 8, marginBottom: 0 }}>Sprints needed vs funded; red means over-subscribed.</Note>
+        </Card>
+        <Card title="Milestone Cash Flow">
         {r.msRows.length === 0 && <div className="sub">No milestones.</div>}
         {r.msRows.map((m, idx) => (
           <button
@@ -179,10 +255,40 @@ export function Dashboard() {
             </span>
           </button>
         ))}
-      </Card>
-      <Card title="Funding by Fiscal Year (color of money)">
-        {r.funding.rows.length ? fundingChart(r, () => go('funding')) : <div className="sub">No milestone payments to schedule.</div>}
-      </Card>
+        </Card>
+        <Card title="Top Cost Drivers (BOE)">
+          {topDrivers.map((b) => (
+            <button
+              key={b.element}
+              type="button"
+              className="dashrow"
+              title={`${b.element} — ${money0(b.price)} (${pct(r.total ? b.price / r.total : 0)} of total) · click for the BOE`}
+              onClick={() => go('boe')}
+            >
+              <span
+                style={{
+                  width: `${cfLabelCh}ch`,
+                  fontSize: 11,
+                  color: 'var(--muted)',
+                  textAlign: 'right',
+                  whiteSpace: 'normal',
+                  lineHeight: 1.25,
+                  flexShrink: 0,
+                }}
+              >
+                {b.element}
+              </span>
+              <span className="dashbar">
+                <i style={{ width: `${((b.price / topMax) * 100).toFixed(1)}%` }} />
+              </span>
+              <span className="mono" style={{ width: 110, fontSize: 11, textAlign: 'right', flexShrink: 0 }}>
+                {money0(b.price)}
+              </span>
+            </button>
+          ))}
+          <Note style={{ marginTop: 8, marginBottom: 0 }}>Largest capability prices; defend these hardest in the BOE.</Note>
+        </Card>
+      </div>
     </Section>
   );
 }

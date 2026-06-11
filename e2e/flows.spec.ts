@@ -131,12 +131,32 @@ test('dashboard labels are never truncated and widgets drill through', async ({ 
   await expect(rows.first()).toBeVisible();
   for (const t of await rows.allTextContents()) expect(t).not.toContain('…');
   // Clicking a milestone cash-flow row opens the payment schedule.
-  await rows.first().click();
+  await page.locator('.dashrow[title*="payment schedule"]').first().click();
   await expect(page.locator('main h2').first()).toHaveText('Milestone Payment Schedule');
   // Clicking a KPI opens the tab that owns it.
   await page.goto('/#/dashboard');
   await page.getByTitle('Open Pricing Results').first().click();
   await expect(page.locator('main h2').first()).toHaveText('Pricing Results');
+});
+
+test('dashboard insight cards render and drill through', async ({ page }) => {
+  await page.goto('/#/dashboard');
+  // New cards are present with content.
+  await expect(page.getByText('Cumulative Expenditure (cost basis)')).toBeVisible();
+  await expect(page.locator('svg[aria-label="Cumulative expenditure by month"]')).toBeVisible();
+  await expect(page.getByText('Demand vs Funded Capacity by Year')).toBeVisible();
+  await expect(page.getByText('Top Cost Drivers (BOE)')).toBeVisible();
+  // Integrity KPI links to the checks tab.
+  await page.getByTitle('Open Integrity Checks').click();
+  await expect(page.locator('main h2').first()).toHaveText('Integrity Checks');
+  // Top-driver rows link to the BOE.
+  await page.goto('/#/dashboard');
+  await page.getByTitle(/click for the BOE/).first().click();
+  await expect(page.locator('main h2').first()).toHaveText('BOE Traceability');
+  // Demand rows link to time-phasing.
+  await page.goto('/#/dashboard');
+  await page.getByTitle(/click for time-phasing/).first().click();
+  await expect(page.locator('main h2').first()).toHaveText('Time-Phasing: Surge & AI Disruption');
 });
 
 test('no text is truncated anywhere in the app', async ({ page }) => {
