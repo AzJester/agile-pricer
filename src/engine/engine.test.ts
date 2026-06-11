@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { compute, escF, mean, mround, stdevSample } from './compute';
-import { repairPursuit, looksLikePursuit } from './repair';
+import { repairPursuit, looksLikePursuit, isNewerSchema } from './repair';
 import { baselineSeed, blankSeed, calibratedSeed, demoSeed } from './seeds';
 import { sensitivity } from './sensitivity';
-import { simulate, triSample } from './simulate';
+import { mulberry32, simulate, triSample } from './simulate';
 
 /**
  * Golden-master values from the validated reference workbook. These are the
@@ -131,6 +131,18 @@ describe('engine mechanics', () => {
     expect(c6.ok).toBe(false);
   });
 
+  it('unmapped backlog labor fails check 7 by the dropped dollar amount', () => {
+    const s = baselineSeed();
+    s.backlog[0].milestone = 'No Such Milestone';
+    const r = compute(s);
+    const c7 = r.checks.find((c) => c.n === 7)!;
+    expect(c7.ok).toBe(false);
+    expect(c7.val).toBeLessThan(0);
+    // And it passes when every backlog milestone exists.
+    const ok = compute(baselineSeed()).checks.find((c) => c.n === 7)!;
+    expect(ok.ok).toBe(true);
+  });
+
   it('excluding program support removes it from the priced total', () => {
     const s = demoSeed();
     const withPs = compute(s);
@@ -215,6 +227,47 @@ describe('simulation', () => {
     const a = simulate(off, 3000, mkRand());
     const b = simulate(on, 3000, mkRand());
     expect(b.std).toBeGreaterThan(a.std);
+  });
+
+  it('default runs are seeded, reproducible, and report the seed', () => {
+    const s = demoSeed();
+    const a = simulate(s, 1000);
+    const b = simulate(s, 1000);
+    expect(a.seed).toBe(b.seed);
+    expect(a.p80).toBe(b.p80);
+    expect(a.mean).toBe(b.mean);
+    const other = simulate(s, 1000, undefined, 7);
+    expect(other.seed).toBe(7);
+    expect(other.p80).not.toBe(a.p80);
+    // A custom RNG reports no seed (the caller owns reproducibility).
+    expect(simulate(s, 500, mulberry32(1)).seed).toBeNull();
+  });
+
+  it('copula loading delivers the entered pairwise correlation', () => {
+    // Two identical epics: Var(sum) = 2σ²(1+ρ), so the variance ratio of a
+    // correlated run over an independent run recovers ρ directly.
+    const mk = () => {
+      const s = blankSeed();
+      const epic = { capability: 'C', epic: 'E', pi: 'PI1', piYear: 1, milestone: 'Increment 1', archetype: 'Team A', low: 50, likely: 100, high: 200 };
+      s.backlog = [{ ...epic }, { ...epic, epic: 'E2' }];
+      s.loe = [];
+      s.psupport = [];
+      s.odc = [];
+      s.teaming = [];
+      s.velocity.rampFactor = 1;
+      return s;
+    };
+    const indep = mk();
+    indep.risk = { correlation: 0, sampleVelocity: false };
+    const corr = mk();
+    corr.risk = { correlation: 0.5, sampleVelocity: false };
+    const a = simulate(indep, 12000, mulberry32(11));
+    const b = simulate(corr, 12000, mulberry32(11));
+    const measured = (b.std / a.std) ** 2 - 1;
+    // Triangular margins attenuate the latent ρ slightly; 0.5 should come
+    // back near 0.5, not the ρ² = 0.25 the pre-fix loading produced.
+    expect(measured).toBeGreaterThan(0.38);
+    expect(measured).toBeLessThan(0.62);
   });
 
   it('applies the automation curve so trials reconcile with compute()', () => {
@@ -352,6 +405,23 @@ describe('monthly phasing', () => {
     expect(m.months[0].totalFte).toBeGreaterThan(0);
     expect(Math.max(...m.months.map((x) => x.backlogFte))).toBeGreaterThan(0);
   });
+
+  it('fractional LOE months still reconcile exactly', async () => {
+    const { monthlyPhasing } = await import('./monthly');
+    const s = baselineSeed();
+    s.loe[0].months = 11.7;
+    const r = compute(s);
+    const m = monthlyPhasing(s, r);
+    expect(m.totals.loe).toBeCloseTo(r.loeTot, 4);
+    expect(m.totals.total).toBeCloseTo(r.base, 3);
+  });
+
+  it('fractional milestone month offsets do not crash on pre-repair data', async () => {
+    const { monthlyPhasing } = await import('./monthly');
+    const s = baselineSeed();
+    s.milestones[0].monthOffset = 2.5;
+    expect(() => monthlyPhasing(s)).not.toThrow();
+  });
 });
 
 describe('repair / import validation', () => {
@@ -369,7 +439,7 @@ describe('repair / import validation', () => {
     };
     const p = repairPursuit(v1);
     expect(p.schemaVersion).toBe(2);
-    expect(p.control.periods).toEqual([
+    expect(p.control.periods).toMatchObject([
       { label: 'Base', months: 12, color: 'RDT&E' },
       { label: 'Option 1', months: 24, color: 'O&M' },
     ]);
@@ -410,6 +480,61 @@ describe('repair / import validation', () => {
     expect(looksLikePursuit('text')).toBe(false);
     expect(looksLikePursuit({})).toBe(false);
     expect(looksLikePursuit({ name: 'x', control: {}, backlog: [] })).toBe(true);
+  });
+
+  it('never throws on malformed array elements or junk field values', () => {
+    const p = repairPursuit({
+      name: 'x',
+      control: { fee: 'abc' },
+      rates: [null, 'junk', { lcat: 'Eng', direct: 'abc' }],
+      milestones: ['junk', { name: 'M', monthOffset: 2.5, phase: 1 }],
+      backlog: [null, { epic: 'E', low: '10', likely: 5, high: 1 }],
+      loe: [42],
+      odc: [{ years: ['5', 'x'] }],
+      teaming: [{ lines: 'nope' }],
+    });
+    expect(Number.isFinite(compute(p).total)).toBe(true);
+    // Junk numerics degrade to safe defaults instead of NaN.
+    expect(p.rates.find((r) => r.lcat === 'Eng')!.direct).toBe(0);
+    expect(p.control.fee).toBe(blankSeed().control.fee);
+    // Non-record rows drop rather than crash the load path.
+    expect(p.loe).toHaveLength(0);
+    // Fractional milestone offsets become whole months.
+    expect(p.milestones.find((m) => m.name === 'M')!.monthOffset).toBe(3);
+  });
+
+  it('sorts inverted three-point estimates so P80 stays at or above P50', () => {
+    const p = repairPursuit({
+      name: 'x',
+      control: {},
+      backlog: [{ capability: 'C', epic: 'E', pi: 'PI1', piYear: 1, milestone: '', archetype: 'Team A', low: 140, likely: 90, high: 60 }],
+    });
+    const b = p.backlog[0];
+    expect([b.low, b.likely, b.high]).toEqual([60, 90, 140]);
+    const r = compute(p);
+    expect(r.costP50).toBeLessThanOrEqual(r.costP80);
+  });
+
+  it('clamps capacity reserve below 100%; compute flags a raw ≥100% input', () => {
+    const p = repairPursuit({ name: 'x', control: {}, velocity: { capacityReserve: 1.4, rampFactor: 0.8, samples: [40, 41] } });
+    expect(p.velocity.capacityReserve).toBeLessThanOrEqual(0.95);
+    const s = baselineSeed();
+    s.velocity.capacityReserve = 1;
+    expect(compute(s).flags.some((f) => f.sev === 'bad' && f.msg.includes('Capacity reserve'))).toBe(true);
+  });
+
+  it('assigns stable row ids exactly once across repeated repairs', () => {
+    const p = repairPursuit(JSON.parse(JSON.stringify(baselineSeed())));
+    expect(p.backlog.every((b) => typeof b.id === 'string' && b.id.length > 0)).toBe(true);
+    expect(p.milestones.every((m) => typeof m.id === 'string')).toBe(true);
+    const again = repairPursuit(JSON.parse(JSON.stringify(p)));
+    expect(again.backlog.map((b) => b.id)).toEqual(p.backlog.map((b) => b.id));
+  });
+
+  it('detects files written by a newer schema version', () => {
+    expect(isNewerSchema({ schemaVersion: 3, name: 'future' })).toBe(true);
+    expect(isNewerSchema({ schemaVersion: 2, name: 'current' })).toBe(false);
+    expect(isNewerSchema('junk')).toBe(false);
   });
 
   it('normalizes bad phases, samples, and maps', () => {

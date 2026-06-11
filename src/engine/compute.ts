@@ -521,8 +521,11 @@ export function compute(s: Pursuit): ComputeResult {
   const colorOfPhase = (ph: number) => String(periods[ph - 1]?.color || 'RDT&E');
   const fundByFY: Record<number, { total: number; byColor: Record<string, number> }> = {};
   for (const r of msRows) {
+    // Pin to day 1 first: setMonth from a day-29..31 start overflows into the
+    // next month and can shift the milestone into the wrong fiscal year.
     const d = new Date(ps);
-    d.setMonth(d.getMonth() + r.monthOffset);
+    d.setDate(1);
+    d.setMonth(d.getMonth() + Math.round(r.monthOffset));
     const fy = d.getMonth() >= 9 ? d.getFullYear() + 1 : d.getFullYear();
     const color = colorOfPhase(r.phase);
     fundByFY[fy] = fundByFY[fy] || { total: 0, byColor: {} };
@@ -567,6 +570,14 @@ export function compute(s: Pursuit): ComputeResult {
 
   // Sanity-band advisory flags
   const flags: AdvisoryFlag[] = [];
+  if (capRes >= 1)
+    flags.push({
+      sev: 'bad',
+      msg:
+        'Capacity reserve is ' +
+        Math.round(capRes * 100) +
+        '%. At 100% or more the 1/(1−reserve) gross-up is undefined and all backlog labor is zeroed — the price excludes the entire backlog.',
+    });
   if (util > 0 && util < 0.7)
     flags.push({
       sev: 'warn',
@@ -671,12 +682,18 @@ export function compute(s: Pursuit): ComputeResult {
     {
       n: 7,
       label: 'Backlog labor mapped fully to milestones',
+      // Sum only the labor that lands on a defined milestone; labor keyed by
+      // an unmatched name stays in laborCol but never reaches the schedule.
       val: round0(
-        Object.values(laborCol).reduce((a, b) => a + b, 0) - (conf === 'P80' ? capSubP80 : capSubP50),
+        [...new Set(s.milestones.map((m) => m.name))].reduce((a, name) => a + (laborCol[name] || 0), 0) -
+          (conf === 'P80' ? capSubP80 : capSubP50),
       ),
       ok:
         Math.abs(
-          round0(Object.values(laborCol).reduce((a, b) => a + b, 0) - (conf === 'P80' ? capSubP80 : capSubP50)),
+          round0(
+            [...new Set(s.milestones.map((m) => m.name))].reduce((a, name) => a + (laborCol[name] || 0), 0) -
+              (conf === 'P80' ? capSubP80 : capSubP50),
+          ),
         ) <= 1,
     },
     {

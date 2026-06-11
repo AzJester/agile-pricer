@@ -28,20 +28,41 @@ function normal(rand: () => number): number {
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * rand());
 }
 
+/** Default seed for reproducible production runs (arbitrary fixed value). */
+export const DEFAULT_SIM_SEED = 0x5eed1234;
+
+/** Small, fast seeded PRNG (mulberry32) so quoted percentiles can be regenerated. */
+export function mulberry32(seed: number): () => number {
+  let t = seed >>> 0;
+  return () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /**
  * Monte Carlo over the backlog's three-point estimates. Non-backlog cost
  * (LOE, program support, ODC, fixed) is deterministic, matching compute().
  *
- * With `risk.correlation` > 0, epic outcomes share a common factor per trial
- * (Gaussian copula): u_i = Φ(ρ·Z + √(1−ρ²)·Z_i). Independent sampling
- * (ρ = 0) understates tail risk because epic overruns are usually driven by
- * the same team and the same unknowns.
+ * With `risk.correlation` = ρ > 0, epic outcomes share a common factor per
+ * trial (one-factor Gaussian copula): u_i = Φ(√ρ·Z + √(1−ρ)·Z_i), which
+ * gives the entered ρ as the *pairwise* latent correlation (the loading is
+ * √ρ because pairwise correlation is the loading squared). Independent
+ * sampling (ρ = 0) understates tail risk because epic overruns are usually
+ * driven by the same team and the same unknowns.
  *
  * With `risk.sampleVelocity`, each trial also draws a velocity multiplier
  * from N(1, CoV) (floored at 0.2), so velocity uncertainty enters the
  * distribution instead of living only in the reserve heuristic.
+ *
+ * Without a custom RNG the run is seeded (DEFAULT_SIM_SEED) and therefore
+ * reproducible; the seed used is reported on the result.
  */
-export function simulate(s: Pursuit, iters?: number, rand: () => number = Math.random): SimulationResult {
+export function simulate(s: Pursuit, iters?: number, rand?: () => number, seed = DEFAULT_SIM_SEED): SimulationResult {
+  const reportedSeed = rand ? null : seed;
+  const rng = rand ?? mulberry32(seed);
   const n = Math.max(200, Math.min(20000, iters || 3000));
   const R = compute(s);
   const c = s.control;
@@ -49,7 +70,8 @@ export function simulate(s: Pursuit, iters?: number, rand: () => number = Math.r
   const ramp = num(s.velocity.rampFactor);
   const autoCurve = c.automationCurve || {};
   const rho = Math.min(0.999, Math.max(0, num(s.risk?.correlation)));
-  const rhoC = Math.sqrt(1 - rho * rho);
+  const load = Math.sqrt(rho);
+  const loadC = Math.sqrt(1 - rho);
   const sampleVel = s.risk?.sampleVelocity === true && R.cov > 0;
   // Per-PI-year escalated cost per team-sprint, recovered from the engine's
   // own rows (lp50 = sp50 × escalated cps) so trials price labor identically
@@ -59,15 +81,15 @@ export function simulate(s: Pursuit, iters?: number, rand: () => number = Math.r
   const fixedBase = R.loeTot + R.psTot + R.odcTot + R.fixedTot;
   const samples = new Array<number>(n);
   for (let it = 0; it < n; it++) {
-    const z = rho > 0 ? normal(rand) : 0;
-    const velMult = sampleVel ? Math.max(0.2, 1 + R.cov * normal(rand)) : 1;
+    const z = rho > 0 ? normal(rng) : 0;
+    const velMult = sampleVel ? Math.max(0.2, 1 + R.cov * normal(rng)) : 1;
     let capLabor = 0;
     for (let bi = 0; bi < s.backlog.length; bi++) {
       const b = s.backlog[bi];
       const lo = num(b.low);
       const li = num(b.likely);
       const hi = num(b.high);
-      const u = rho > 0 ? normCdf(rho * z + rhoC * normal(rand)) : rand();
+      const u = rho > 0 ? normCdf(load * z + loadC * normal(rng)) : rng();
       const pts = triSample(lo, li, hi, u);
       const a = R.archMap[b.archetype] || { vel: 0, cps: 0 };
       const py = num(b.piYear) || 1;
@@ -82,9 +104,17 @@ export function simulate(s: Pursuit, iters?: number, rand: () => number = Math.r
     samples[it] = capLabor + fixedBase;
   }
   samples.sort((x, y) => x - y);
-  const pct = (p: number) => samples[Math.min(samples.length - 1, Math.floor((p / 100) * samples.length))];
+  // Linearly interpolated order statistic (the floor-index variant biases
+  // high by up to one rank at small n).
+  const pct = (p: number) => {
+    const pos = ((samples.length - 1) * p) / 100;
+    const lo = Math.floor(pos);
+    const hi = Math.min(samples.length - 1, lo + 1);
+    return samples[lo] + (samples[hi] - samples[lo]) * (pos - lo);
+  };
   return {
     iters: n,
+    seed: reportedSeed,
     mean: mean(samples),
     std: stdevSample(samples),
     p10: pct(10),
