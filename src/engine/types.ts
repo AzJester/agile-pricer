@@ -15,6 +15,8 @@ export type Phase = number;
 
 /** A contract period (base or option). Each is its own CLIN/ALIN and funding action. */
 export interface PeriodDef {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   label: string;
   months: number;
   color: ColorOfMoney | string;
@@ -26,6 +28,10 @@ export interface ControlInputs {
   popStart: string;
   /** Contract periods in order: base first, then options. At least one. */
   periods: PeriodDef[];
+  /**
+   * Documentation-only cadence note. Capacity comes from workingSprintsYr ×
+   * productiveHrs; this field does not enter any computation.
+   */
   sprintLengthWeeks: number;
   /** Productive hours per sprint per FTE, net of leave and ceremonies. */
   productiveHrs: number;
@@ -67,6 +73,8 @@ export interface ControlInputs {
 }
 
 export interface LaborRate {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   lcat: string;
   direct: number;
   /**
@@ -85,6 +93,8 @@ export interface LaborRate {
 }
 
 export interface Archetype {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   name: string;
   /** Steady-state velocity, points per sprint. */
   velocity: number;
@@ -104,6 +114,8 @@ export interface VelocityInputs {
 }
 
 export interface BacklogItem {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   capability: string;
   epic: string;
   pi: string;
@@ -117,6 +129,8 @@ export interface BacklogItem {
 }
 
 export interface LoeLine {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   fn: string;
   lcat: string;
   fte: number;
@@ -126,6 +140,8 @@ export interface LoeLine {
 }
 
 export interface PSupportLine {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   role: string;
   lcat: string;
   fte: number;
@@ -135,6 +151,8 @@ export interface PSupportLine {
 }
 
 export interface OdcLine {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   item: string;
   cat: string;
   basis?: string;
@@ -144,6 +162,8 @@ export interface OdcLine {
 }
 
 export interface Milestone {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   name: string;
   pi: string;
   phase: Phase;
@@ -157,12 +177,16 @@ export interface Milestone {
 
 /** Bottom-up subcontractor labor line: fully burdened sub rate × hours. */
 export interface SubLine {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   role: string;
   rate: number;
   hours: number;
 }
 
 export interface TeamingPartner {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   party: string;
   /** Manual sub cost; ignored when bottom-up lines exist. */
   subCost: number;
@@ -171,13 +195,19 @@ export interface TeamingPartner {
 
 /** Monte Carlo configuration. */
 export interface RiskInputs {
-  /** 0..1 Gaussian-copula correlation between epic outcomes per trial. */
+  /**
+   * 0..1 pairwise Gaussian-copula correlation between epic outcomes per
+   * trial (the one-factor loading is √correlation, so two epics' latent
+   * normals correlate at exactly this value).
+   */
   correlation: number;
   /** Also sample team velocity per trial from the historical CoV. */
   sampleVelocity: boolean;
 }
 
 export interface CapacityTier {
+  /** Stable row identity for editing UIs; assigned by repairPursuit. */
+  id?: string;
   name: string;
   color: ColorOfMoney | string;
   /** Archetype name -> team count in this tier. */
@@ -466,6 +496,8 @@ export interface ComputeResult {
 
 export interface SimulationResult {
   iters: number;
+  /** PRNG seed used when no custom RNG is supplied; null with a custom RNG. */
+  seed: number | null;
   mean: number;
   std: number;
   p10: number;

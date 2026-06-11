@@ -1,5 +1,6 @@
 import type { Pursuit } from '../engine';
 import { fileSafe } from '../lib/format';
+import { parseDelimited } from '../lib/importBacklog';
 import type { IndirectRateSet, PursuitEntry } from '../state/store';
 import { downloadText } from './download';
 
@@ -26,15 +27,19 @@ export function readFileAsText(file: File): Promise<string> {
 
 /** Parse "LCAT,Direct" CSV rows (header optional). */
 export function parseRatesCsv(text: string): { lcat: string; direct: number }[] {
-  const lines = text.split(/\r?\n/).filter((x) => x.trim());
-  if (!lines.length) return [];
-  const hasHeader = /lcat|labor|direct/i.test(lines[0]);
+  // The quote-aware parser handles LCATs like "Engineer, Senior"; a naive
+  // split(',') silently dropped them.
+  const rows = parseDelimited(text);
+  if (!rows.length) return [];
+  // Header detection by shape, not name: a data row's second column is a
+  // number. Matching on "direct|labor" ate the first row of a headerless
+  // file whose first LCAT happened to contain those words.
+  const isHeader = rows[0].length >= 2 && !Number.isFinite(parseFloat(rows[0][1]));
   const out: { lcat: string; direct: number }[] = [];
-  for (const ln of hasHeader ? lines.slice(1) : lines) {
-    const parts = ln.split(',');
-    if (parts.length < 2) continue;
-    const lcat = parts[0].replace(/^"|"$/g, '').trim();
-    const direct = parseFloat(parts[1]);
+  for (const row of isHeader ? rows.slice(1) : rows) {
+    if (row.length < 2) continue;
+    const lcat = (row[0] ?? '').trim();
+    const direct = parseFloat(row[1]);
     if (!lcat || !Number.isFinite(direct)) continue;
     out.push({ lcat, direct });
   }

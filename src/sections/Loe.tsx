@@ -1,6 +1,6 @@
 import { NumCell, SelectCell, TextCell, Toggle } from '../components/inputs';
 import { AddRowButton, Callout, DeleteRowButton, Section } from '../components/ui';
-import type { LoeLine, Phase, PSupportLine } from '../engine';
+import { newRowId, type LoeLine, type Phase, type PSupportLine } from '../engine';
 import { money0 } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -49,7 +49,7 @@ export function Loe() {
               {s.loe.map((l, i) => {
                 const der = r.loeRows[i] || { monthly: 0, cost: 0 };
                 return (
-                  <tr key={i}>
+                  <tr key={l.id ?? i}>
                     <td>
                       <TextCell value={l.fn} onCommit={(v) => set(i, 'fn', v)} />
                     </td>
@@ -108,7 +108,7 @@ export function Loe() {
           label="Add LOE line"
           onClick={() =>
             update((p) => {
-              p.loe.push({ fn: 'New LOE', lcat: p.rates[0]?.lcat || '', fte: 1, phase: 1, months: 12, rateYear: 1 });
+              p.loe.push({ id: newRowId(), fn: 'New LOE', lcat: p.rates[0]?.lcat || '', fte: 1, phase: 1, months: 12, rateYear: 1 });
             })
           }
         />
@@ -182,7 +182,7 @@ export function PSupport() {
               {s.psupport.map((l, i) => {
                 const der = r.psRows[i] || { monthly: 0, cost: 0 };
                 return (
-                  <tr key={i}>
+                  <tr key={l.id ?? i}>
                     <td>
                       <TextCell value={l.role} onCommit={(v) => set(i, 'role', v)} />
                     </td>
@@ -242,6 +242,7 @@ export function PSupport() {
           onClick={() =>
             update((p) => {
               p.psupport.push({
+                id: newRowId(),
                 role: 'Program Control Analyst',
                 lcat: p.rates[0]?.lcat || '',
                 fte: 0.5,

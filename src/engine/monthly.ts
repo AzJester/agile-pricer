@@ -46,9 +46,10 @@ export function monthlyPhasing(s: Pursuit, r: ComputeResult = compute(s)): Month
   let horizon = progMonths;
   for (const l of [...s.loe, ...s.psupport]) {
     const ph = Math.min(Math.max(1, Math.round(num(l.phase)) || 1), r.periods.length);
-    horizon = Math.max(horizon, (r.periods[ph - 1]?.startMonth ?? 0) + num(l.months));
+    horizon = Math.max(horizon, (r.periods[ph - 1]?.startMonth ?? 0) + Math.ceil(Math.max(0, num(l.months))));
   }
-  for (const m of r.msRows) horizon = Math.max(horizon, m.monthOffset + 1);
+  for (const m of r.msRows) horizon = Math.max(horizon, Math.round(num(m.monthOffset)) + 1);
+  horizon = Math.ceil(horizon);
 
   const months: MonthRow[] = Array.from({ length: horizon }, (_, idx) => ({
     idx,
@@ -88,10 +89,14 @@ export function monthlyPhasing(s: Pursuit, r: ComputeResult = compute(s)): Month
   ) => {
     const ph = Math.min(Math.max(1, Math.round(num(line.phase)) || 1), r.periods.length);
     const start = r.periods[ph - 1]?.startMonth ?? 0;
-    const n = Math.max(0, Math.round(num(line.months)));
-    for (let m = start; m < start + n && m < months.length; m++) {
-      if (counted) months[m][kind] += monthly;
-      months[m].loeFte += num(line.fte);
+    // Fractional durations get a partial final month, so the spread sums to
+    // monthly × months exactly — the same product compute() costs the line at.
+    const mTot = Math.max(0, num(line.months));
+    const n = Math.ceil(mTot);
+    for (let k = 0, m = start; k < n && m < months.length; k++, m++) {
+      const frac = Math.min(1, mTot - k);
+      if (counted) months[m][kind] += monthly * frac;
+      months[m].loeFte += num(line.fte) * frac;
     }
   };
   r.loeRows.forEach((l) => spreadFteLine('loe', l, l.monthly, true));
@@ -113,9 +118,10 @@ export function monthlyPhasing(s: Pursuit, r: ComputeResult = compute(s)): Month
     }
   }
 
-  // Fixed amounts at milestone completion
+  // Fixed amounts at milestone completion (whole-month index; fractional
+  // offsets would index a hole in the array)
   for (const m of r.msRows) {
-    const idx = Math.min(Math.max(0, m.monthOffset), months.length - 1);
+    const idx = Math.min(Math.max(0, Math.round(num(m.monthOffset))), months.length - 1);
     months[idx].fixed += m.fixed;
   }
 

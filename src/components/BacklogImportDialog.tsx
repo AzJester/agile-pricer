@@ -35,7 +35,7 @@ export function BacklogImportDialog(props: { onClose: () => void }) {
   const [archetype, setArchetype] = useState(s.archetypes[0]?.name || '');
   const [milestone, setMilestone] = useState(s.milestones[0]?.name || '');
   const fileRef = useRef<HTMLInputElement>(null);
-  const trapRef = useFocusTrap<HTMLDivElement>();
+  const trapRef = useFocusTrap<HTMLDivElement>(props.onClose);
 
   const rows = useMemo(() => (text.trim() ? parseDelimited(text) : []), [text]);
   const effectiveMapping = useMemo<BacklogField[]>(() => {
@@ -57,15 +57,18 @@ export function BacklogImportDialog(props: { onClose: () => void }) {
     return guessed;
   }, [rows, mapping]);
 
-  const opts: ImportOptions = {
-    mapping: effectiveMapping,
-    hasHeader,
-    spreadLow,
-    spreadHigh,
-    defaultArchetype: archetype,
-    defaultMilestone: milestone,
-    defaultPiYear: 1,
-  };
+  const opts = useMemo<ImportOptions>(
+    () => ({
+      mapping: effectiveMapping,
+      hasHeader,
+      spreadLow,
+      spreadHigh,
+      defaultArchetype: archetype,
+      defaultMilestone: milestone,
+      defaultPiYear: 1,
+    }),
+    [effectiveMapping, hasHeader, spreadLow, spreadHigh, archetype, milestone],
+  );
   const preview = useMemo(() => (rows.length ? buildBacklogItems(rows, opts) : []), [rows, opts]);
 
   const doImport = () => {
@@ -148,11 +151,12 @@ export function BacklogImportDialog(props: { onClose: () => void }) {
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8, fontSize: 12 }}>
               <label>
                 Low spread −{' '}
-                <input type="number" step={0.05} value={spreadLow} style={{ width: 64 }} onChange={(e) => setSpreadLow(parseFloat(e.target.value) || 0)} />
+                {/* >0.95 would derive negative low points */}
+                <input type="number" step={0.05} min={0} max={0.95} value={spreadLow} style={{ width: 64 }} onChange={(e) => setSpreadLow(Math.min(0.95, Math.max(0, parseFloat(e.target.value) || 0)))} />
               </label>
               <label>
                 High spread +{' '}
-                <input type="number" step={0.05} value={spreadHigh} style={{ width: 64 }} onChange={(e) => setSpreadHigh(parseFloat(e.target.value) || 0)} />
+                <input type="number" step={0.05} min={0} max={5} value={spreadHigh} style={{ width: 64 }} onChange={(e) => setSpreadHigh(Math.min(5, Math.max(0, parseFloat(e.target.value) || 0)))} />
               </label>
               <label>
                 Archetype{' '}

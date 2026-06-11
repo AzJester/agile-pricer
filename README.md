@@ -18,8 +18,9 @@ The math engine is pinned by golden-master tests to the validated reference work
 ```bash
 npm install
 npm run dev        # local dev server
-npm test           # engine test suite (43 unit + property tests)
+npm test           # unit + property test suite (60 tests)
 npm run e2e        # Playwright end-to-end suite against the production build
+npm run lint       # ESLint + type-check
 npm run build      # type-check + production bundle in dist/
 npm run preview    # serve the production build
 npm run serve:sync # optional team sync server (see below)
@@ -40,12 +41,14 @@ src/
     types.ts       Pursuit data model (schema v2) and computed-result types
     compute.ts     Deterministic cost-to-price model, N contract periods,
                    per-year escalation, FPRA rate tables, 13 integrity checks
-    simulate.ts    Monte Carlo: triangular sampling, Gaussian-copula epic
-                   correlation, optional per-trial velocity sampling
+    simulate.ts    Monte Carlo: seeded/reproducible, triangular sampling,
+                   Gaussian-copula epic correlation (entered value = pairwise
+                   correlation), optional per-trial velocity sampling
     sensitivity.ts One-at-a-time driver sweep (tornado)
     monthly.ts     Monthly cost phasing + FTE staffing plan (ties to totals)
     seeds.ts       Reference baseline, blank, calibrated, and showcase pursuits
-    repair.ts      Schema repair/migration (v1 two-phase -> v2 periods)
+    repair.ts      zod-validated repair/migration (v1 two-phase -> v2
+                   periods); total over arbitrary/corrupted input
     *.test.ts      Golden-master, invariant, behavior, and property-based tests
   state/         Zustand store: pursuits, undo/redo, snapshots, baseline pin,
                  localStorage persistence
@@ -89,9 +92,11 @@ months, and color of money. Milestones, LOE, program support, and row-phased ODC
 milestone prices allocate the total by mapped labor (LOE/PS/ODC pro-rata within the period) with a
 configurable rounding plug, and 13 integrity checks confirm every view reconciles to the same total.
 
-**Risk:** Monte Carlo supports epic correlation (Gaussian copula — independent sampling understates
-tail risk) and per-trial velocity sampling from the historical CoV. Trials include program support
-and the AI/automation curve, so the distribution reconciles with the deterministic stack.
+**Risk:** Monte Carlo supports epic correlation (one-factor Gaussian copula with a √ρ loading, so the
+entered value is the pairwise correlation — independent sampling understates tail risk) and per-trial
+velocity sampling from the historical CoV. Runs are seeded and reproducible (the seed is reported with
+the result). Trials include program support and the AI/automation curve, so the distribution
+reconciles with the deterministic stack.
 
 **Phasing:** `monthly.ts` spreads the cost stack across calendar months (backlog labor over its PI
 year, LOE/PS over each line's months from its period start, ODC per program year, fixed at milestone
@@ -113,10 +118,14 @@ staffing plan on the Cost Phasing & Staffing tab.
 ## Team sync (optional)
 
 `npm run serve:sync` starts a zero-dependency server (`server/server.mjs`) storing portfolios as JSON
-with revision-based optimistic concurrency and optional bearer-token auth (`API_TOKEN=…`). The Sync
-toolbar dialog pushes/pulls the whole portfolio; the app stays local-first and nothing is sent until
-you push. For enterprise SSO, replace `checkAuth()` with JWT validation against your IdP (for
-Entra ID: verify signature via the tenant JWKS endpoint, check audience and tenant) and run behind TLS.
+with revision-based optimistic concurrency and optional bearer-token auth (`API_TOKEN=…`, compared in
+constant time). Without a token the server binds `127.0.0.1` only; setting `API_TOKEN` (or `HOST`)
+serves the network. `ALLOWED_ORIGIN` narrows CORS from the default `*`, every request is access-logged,
+and writes are atomic (temp file + rename). Run one process per `DATA_DIR`. The Sync toolbar dialog
+pushes/pulls the whole portfolio; the app stays local-first and nothing is sent until you push. For
+enterprise SSO, replace `checkAuth()` with JWT validation against your IdP (for Entra ID: verify
+signature via the tenant JWKS endpoint, check audience and tenant) and run behind TLS — the hosted
+app is HTTPS, so browsers block plain-http sync URLs as mixed content.
 
 ## Data caution
 

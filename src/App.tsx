@@ -3,7 +3,7 @@ import { confirmDialog, DialogHost, promptDialog } from './components/dialogs';
 import { SnapshotsDialog } from './components/SnapshotsDialog';
 import { SyncDialog } from './components/SyncDialog';
 import { Pill, statusTone, utilTone } from './components/ui';
-import { looksLikePursuit } from './engine';
+import { isNewerSchema, looksLikePursuit } from './engine';
 import { exportExcel } from './export/excel';
 import { exportPortfolioJson, exportPursuitJson, readFileAsText } from './export/json';
 import { exportWord } from './export/word';
@@ -92,8 +92,15 @@ function Toolbar() {
       const data: unknown = JSON.parse(await readFileAsText(file));
       // A portfolio file wraps multiple pursuits; a pursuit file is one.
       if (data && typeof data === 'object' && Array.isArray((data as { pursuits?: unknown }).pursuits)) {
+        const entries = (data as { pursuits: { data?: unknown }[] }).pursuits;
+        if (entries.some((p) => isNewerSchema(p?.data))) {
+          store.showToast('This portfolio was saved by a newer app version — update the app before importing');
+          return;
+        }
         const n = store.importPortfolio(data);
         store.showToast(n ? `Imported ${n} pursuits` : 'Invalid portfolio file');
+      } else if (isNewerSchema(data)) {
+        store.showToast('This pursuit was saved by a newer app version — update the app before importing');
       } else if (looksLikePursuit(data)) {
         store.importPursuit(data);
       } else {
@@ -243,6 +250,7 @@ function Nav({ route, navigate }: { route: string; navigate: (id: string) => voi
                 key={id}
                 type="button"
                 className={'navbtn' + (route === id ? ' active' : '')}
+                aria-current={route === id ? 'page' : undefined}
                 onClick={() => navigate(id)}
               >
                 {label}
@@ -252,6 +260,9 @@ function Nav({ route, navigate }: { route: string; navigate: (id: string) => voi
           })}
         </div>
       ))}
+      <div className="navsec" style={{ marginTop: 14 }}>
+        <span style={{ color: 'var(--input)' }}>Blue</span> = input · Black = calculated
+      </div>
     </nav>
   );
 }

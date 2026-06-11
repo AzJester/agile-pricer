@@ -1,6 +1,6 @@
 import { NumCell, SelectCell, TextCell } from '../components/inputs';
 import { AddRowButton, Card, DeleteRowButton, Note, Section } from '../components/ui';
-import type { OdcLine } from '../engine';
+import { newRowId, type OdcLine } from '../engine';
 import { money0 } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -88,7 +88,7 @@ export function Odc() {
               {s.odc.map((o, i) => {
                 const der = r.odcRows[i] || { escTotal: 0, withH: 0 };
                 return (
-                  <tr key={i}>
+                  <tr key={o.id ?? i}>
                     <td>
                       <TextCell value={o.item} onCommit={(v) => set(i, 'item', v)} />
                     </td>
@@ -151,7 +151,7 @@ export function Odc() {
           label="Add ODC item"
           onClick={() =>
             update((p) => {
-              p.odc.push({ item: 'New ODC', cat: 'ODC', phase: 1, years: Array(yN).fill(0) });
+              p.odc.push({ id: newRowId(), item: 'New ODC', cat: 'ODC', phase: 1, years: Array(yN).fill(0) });
             })
           }
         />

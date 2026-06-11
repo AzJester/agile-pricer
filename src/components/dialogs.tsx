@@ -3,11 +3,16 @@ import { create } from 'zustand';
 
 /**
  * Keyboard containment for modal dialogs: focuses the first control on
- * mount, keeps Tab cycling inside the container, and restores focus to the
- * previously focused element on unmount.
+ * mount, keeps Tab cycling inside the container, closes on Escape (the
+ * WAI-ARIA dialog pattern), and restores focus to the previously focused
+ * element on unmount.
  */
-export function useFocusTrap<T extends HTMLElement>() {
+export function useFocusTrap<T extends HTMLElement>(onEscape?: () => void) {
   const ref = useRef<T>(null);
+  const escRef = useRef(onEscape);
+  useEffect(() => {
+    escRef.current = onEscape;
+  });
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -20,6 +25,11 @@ export function useFocusTrap<T extends HTMLElement>() {
       ).filter((x) => !x.hasAttribute('disabled'));
     (focusables()[0] ?? el).focus();
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && escRef.current) {
+        e.stopPropagation();
+        escRef.current();
+        return;
+      }
       if (e.key !== 'Tab') return;
       const f = focusables();
       if (!f.length) return;
@@ -73,17 +83,17 @@ export function confirmDialog(title: string, message: string, danger = false): P
 function DialogBody({ current, close }: { current: DialogRequest; close: () => void }) {
   const [text, setText] = useState(current.kind === 'prompt' ? current.defaultValue : '');
   const inputRef = useRef<HTMLInputElement>(null);
-  const trapRef = useFocusTrap<HTMLDivElement>();
-
-  useEffect(() => {
-    if (current.kind === 'prompt') setTimeout(() => inputRef.current?.select(), 0);
-  }, [current]);
 
   const cancel = () => {
     if (current.kind === 'prompt') current.resolve(null);
     else current.resolve(false);
     close();
   };
+  const trapRef = useFocusTrap<HTMLDivElement>(cancel);
+
+  useEffect(() => {
+    if (current.kind === 'prompt') setTimeout(() => inputRef.current?.select(), 0);
+  }, [current]);
   const accept = () => {
     if (current.kind === 'prompt') current.resolve(text);
     else current.resolve(true);
@@ -108,7 +118,6 @@ function DialogBody({ current, close }: { current: DialogRequest; close: () => v
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') accept();
-              if (e.key === 'Escape') cancel();
             }}
           />
         )}

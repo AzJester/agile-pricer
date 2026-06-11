@@ -1,5 +1,6 @@
 import { NumCell, TextInput } from '../components/inputs';
 import { AddRowButton, Card, DeleteRowButton, Section } from '../components/ui';
+import { newRowId } from '../engine';
 import { fmt0, money0 } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -141,6 +142,7 @@ export function Teams() {
               const hc: Record<string, number> = {};
               for (const rate of p.rates) hc[rate.lcat] = 0;
               p.archetypes.push({
+                id: newRowId(),
                 name: 'Team ' + String.fromCharCode(65 + p.archetypes.length),
                 velocity: 40,
                 teams: 1,

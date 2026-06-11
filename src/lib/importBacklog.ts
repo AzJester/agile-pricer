@@ -1,4 +1,4 @@
-import type { BacklogItem } from '../engine';
+import { newRowId, type BacklogItem } from '../engine';
 
 /**
  * Delimited-text parsing for backlog import: Jira/Azure DevOps CSV exports
@@ -90,6 +90,7 @@ export function buildBacklogItems(rows: string[][], opts: ImportOptions): Backlo
     if (!epic || !Number.isFinite(likely) || likely <= 0) continue;
     const pi = get('pi');
     items.push({
+      id: newRowId(),
       capability: get('capability') || 'Imported',
       epic,
       pi: pi || 'PI1',

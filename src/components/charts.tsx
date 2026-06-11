@@ -33,12 +33,11 @@ export function Waterfall({ steps, w = 620, h = 240 }: { steps: WaterfallStep[];
   const pad = { l: 8, r: 8, t: 24, b: 46 };
   const iw = w - pad.l - pad.r;
   const ih = h - pad.t - pad.b;
-  let cum = 0;
-  const pts = steps.map((s) => {
-    const start = cum;
-    cum += s.delta;
-    return { ...s, start, end: cum };
-  });
+  const pts: (WaterfallStep & { start: number; end: number })[] = [];
+  for (const s of steps) {
+    const start = pts.length ? pts[pts.length - 1].end : 0;
+    pts.push({ ...s, start, end: start + s.delta });
+  }
   const max = Math.max(...pts.map((p) => Math.max(p.start, p.end)), 1);
   const bw = (iw / pts.length) * 0.62;
   const gap = iw / pts.length;
@@ -185,7 +184,13 @@ export function Histogram({
     </g>
   );
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ maxWidth: w }}>
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      width="100%"
+      style={{ maxWidth: w }}
+      role="img"
+      aria-label={`Cost distribution histogram from $${fmt0(Math.round(lo))} to $${fmt0(Math.round(hi))}; P50 $${fmt0(Math.round(p50))}, P80 $${fmt0(Math.round(p80))}`}
+    >
       {counts.map((c, i) => {
         const hh = (c / max) * ih;
         return (

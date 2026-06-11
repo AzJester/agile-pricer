@@ -21,11 +21,13 @@ const arbPursuit: fc.Arbitrary<Pursuit> = fc
     fee: fc.double({ min: 0, max: 0.2, noNaN: true }),
     escalation: fc.double({ min: 0, max: 0.08, noNaN: true }),
     velocity: fc.double({ min: 5, max: 80, noNaN: true }),
-    capacityReserve: fc.double({ min: 0, max: 0.5, noNaN: true }),
+    capacityReserve: fc.double({ min: 0, max: 0.9, noNaN: true }),
     roundTo: fc.constantFrom(0, 100, 1000, 10000),
     plugMode: fc.constantFrom('last', 'perPhase', 'largest' as const),
     epics: fc.array(
-      fc.record({ likely: points, spreadLo: fc.double({ min: 0.5, max: 1, noNaN: true }), spreadHi: fc.double({ min: 1, max: 2, noNaN: true }), phase: smallInt, py: smallInt }),
+      // spreadLo > 1 generates inverted low > likely inputs; repair must
+      // normalize the order so the P50 ≤ P80 invariant still holds.
+      fc.record({ likely: points, spreadLo: fc.double({ min: 0.5, max: 1.6, noNaN: true }), spreadHi: fc.double({ min: 0.6, max: 2, noNaN: true }), phase: smallInt, py: smallInt }),
       { minLength: 1, maxLength: 8 },
     ),
     milestonesPerPeriod: fc.integer({ min: 1, max: 3 }),
