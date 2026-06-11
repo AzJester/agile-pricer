@@ -10,6 +10,9 @@ and an alternative capacity-subscription pricing model.
 The math engine is pinned by golden-master tests to the validated reference workbook
 (total $27,590,172.95, gross-up 1.183815×, reserve 7.6195%).
 
+**Live app:** https://azjester.github.io/agile-pricer/ · **New users:** start with the
+[User Guide](docs/USER_GUIDE.md).
+
 ## Quick start
 
 ```bash
