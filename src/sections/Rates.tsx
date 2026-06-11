@@ -1,12 +1,31 @@
 import { useRef, useState } from 'react';
 import { promptDialog } from '../components/dialogs';
-import { NumCell, OptionalNumInput, SelectCell, TextCell, Toggle } from '../components/inputs';
+import { ComboCell, NumComboCell, OptionalNumInput, NumCell, SelectCell, TextCell, Toggle } from '../components/inputs';
 import { AddRowButton, Card, DeleteRowButton, Legend, Note, Section, TipBox } from '../components/ui';
 import { newRowId, type LaborRate } from '../engine';
 import { parseRatesCsv, readFileAsText } from '../export/json';
 import { fmt2, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
+
+// Dropdown choices for the basis columns. These are suggestions, not a closed
+// vocabulary — every cell also accepts a typed custom value.
+const SKILL_CHOICES = ['Junior', 'Mid', 'Senior', 'Principal', 'SME'];
+const YOE_CHOICES = [2, 3, 5, 8, 10, 12, 15, 20, 25];
+const DEGREE_CHOICES = ['HS', 'AA', 'AS', 'BS', 'BA', 'MS', 'MA', 'MBA', 'PhD'];
+const LOCATION_CHOICES = [
+  'Remote',
+  'National Capital Region',
+  'Huntsville, AL',
+  'Colorado Springs, CO',
+  'Dayton, OH',
+  'San Antonio, TX',
+  'El Segundo, CA',
+  'Boston, MA',
+  'Tampa, FL',
+];
+const CLEARANCE_CHOICES = ['None', 'Public Trust', 'Secret', 'Top Secret', 'TS/SCI', 'TS/SCI w/ CI Poly', 'TS/SCI w/ FS Poly'];
+const SOURCE_CHOICES = ['Actual incumbent rate', 'HR3D', 'ERI survey', 'Salary survey', 'FPRA'];
 
 export function Rates() {
   const s = useActivePursuit();
@@ -83,7 +102,7 @@ export function Rates() {
   return (
     <Section
       title="Labor Rates"
-      sub="Direct rate is the blue input. Fully loaded Year-1 rate = direct × (1+fringe) × (1+OH) × (1+G&A). For to-be-hired roles, set the basis to Survey / HR3D and record the YOE, degree, and location that produced the rate; for proposed incumbents, use Actual staff."
+      sub="Direct rate is the blue input. Fully loaded Year-1 rate = direct × (1+fringe) × (1+OH) × (1+G&A). For to-be-hired roles, set the basis to Survey / HR3D and record the YOE, degree, and location that produced the rate; for proposed incumbents, use Actual staff. Basis columns offer dropdown choices and also accept typed custom values."
     >
       <TipBox>
         Tag <b>every</b> rate with a basis. Use <b>Actual staff</b> when you are proposing a named incumbent, and{' '}
@@ -226,29 +245,52 @@ export function Rates() {
                     />
                   </td>
                   <td>
-                    <SelectCell
+                    <ComboCell
+                      label="Skill level"
                       value={rate.skill || ''}
-                      options={['', 'Junior', 'Mid', 'Senior', 'Principal', 'SME'].map((o) => ({
-                        value: o,
-                        label: o || '— level —',
-                      }))}
+                      options={SKILL_CHOICES}
                       onCommit={(v) => setRate(i, 'skill', v)}
                     />
                   </td>
                   <td className="num">
-                    <NumCell value={rate.yoe ?? ''} onCommit={(v) => setRate(i, 'yoe', v)} />
+                    <NumComboCell
+                      label="Years of experience"
+                      value={rate.yoe ?? ''}
+                      options={YOE_CHOICES}
+                      onCommit={(v) => setRate(i, 'yoe', v)}
+                    />
                   </td>
                   <td>
-                    <TextCell value={rate.degree || ''} onCommit={(v) => setRate(i, 'degree', v)} />
+                    <ComboCell
+                      label="Degree"
+                      value={rate.degree || ''}
+                      options={DEGREE_CHOICES}
+                      onCommit={(v) => setRate(i, 'degree', v)}
+                    />
                   </td>
                   <td>
-                    <TextCell value={rate.location || ''} onCommit={(v) => setRate(i, 'location', v)} />
+                    <ComboCell
+                      label="Location / market"
+                      value={rate.location || ''}
+                      options={LOCATION_CHOICES}
+                      onCommit={(v) => setRate(i, 'location', v)}
+                    />
                   </td>
                   <td>
-                    <TextCell value={rate.clearance || ''} onCommit={(v) => setRate(i, 'clearance', v)} />
+                    <ComboCell
+                      label="Clearance"
+                      value={rate.clearance || ''}
+                      options={CLEARANCE_CHOICES}
+                      onCommit={(v) => setRate(i, 'clearance', v)}
+                    />
                   </td>
                   <td>
-                    <TextCell value={rate.source || ''} onCommit={(v) => setRate(i, 'source', v)} />
+                    <ComboCell
+                      label="Rate source"
+                      value={rate.source || ''}
+                      options={SOURCE_CHOICES}
+                      onCommit={(v) => setRate(i, 'source', v)}
+                    />
                   </td>
                   <td className="num calc">
                     <b>${fmt2(r.loaded[rate.lcat] || 0)}</b>

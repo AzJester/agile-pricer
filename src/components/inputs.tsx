@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
 /**
  * Inputs hold a local draft while focused and commit on blur or Enter, so
@@ -37,6 +37,8 @@ interface CommonProps {
   title?: string;
   /** Accessible name for unlabeled table-cell inputs. */
   label?: string;
+  /** id of a datalist providing dropdown suggestions. */
+  list?: string;
 }
 
 export function NumInput(props: CommonProps & { value: number | string; onCommit: (v: number) => void; step?: number | string }) {
@@ -51,6 +53,7 @@ export function NumInput(props: CommonProps & { value: number | string; onCommit
       type="number"
       step={props.step ?? 'any'}
       aria-label={props.label}
+      list={props.list}
       className={props.className}
       style={props.style}
       placeholder={props.placeholder}
@@ -73,6 +76,7 @@ export function OptionalNumInput(
       type="number"
       step={props.step ?? 'any'}
       aria-label={props.label}
+      list={props.list}
       className={props.className}
       style={props.style}
       placeholder={props.placeholder}
@@ -88,6 +92,7 @@ export function TextInput(props: CommonProps & { value: string; onCommit: (v: st
     <input
       type={props.type ?? 'text'}
       aria-label={props.label}
+      list={props.list}
       className={props.className}
       style={props.style}
       placeholder={props.placeholder}
@@ -105,6 +110,39 @@ export function NumCell(props: { value: number | string; onCommit: (v: number) =
 /** Editable text table cell. */
 export function TextCell(props: { value: string; onCommit: (v: string) => void; label?: string }) {
   return <TextInput className="cellinput text" value={props.value} onCommit={props.onCommit} label={props.label} />;
+}
+
+/**
+ * Editable text cell with a dropdown of suggestions (native datalist combo):
+ * pick a choice or type a custom value — neither select-only nor text-only.
+ */
+export function ComboCell(props: { value: string; options: string[]; onCommit: (v: string) => void; label?: string }) {
+  const listId = useId();
+  return (
+    <>
+      <TextInput className="cellinput text" value={props.value} onCommit={props.onCommit} label={props.label} list={listId} />
+      <datalist id={listId}>
+        {props.options.map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+    </>
+  );
+}
+
+/** Numeric cell with dropdown suggestions; any number can still be typed. */
+export function NumComboCell(props: { value: number | string; options: number[]; onCommit: (v: number) => void; label?: string }) {
+  const listId = useId();
+  return (
+    <>
+      <NumInput className="cellinput num" value={props.value} onCommit={props.onCommit} label={props.label} list={listId} />
+      <datalist id={listId}>
+        {props.options.map((o) => (
+          <option key={o} value={String(o)} />
+        ))}
+      </datalist>
+    </>
+  );
 }
 
 export function SelectCell(props: {
