@@ -20,7 +20,7 @@ export function SyncDialog(props: { onClose: () => void }) {
   const store = useStore();
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [busy, setBusy] = useState(false);
-  const trapRef = useFocusTrap<HTMLDivElement>();
+  const trapRef = useFocusTrap<HTMLDivElement>(props.onClose);
   const [status, setStatus] = useState<string>('');
 
   const update = (patch: Partial<SyncConfig>) => {

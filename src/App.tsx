@@ -243,6 +243,7 @@ function Nav({ route, navigate }: { route: string; navigate: (id: string) => voi
                 key={id}
                 type="button"
                 className={'navbtn' + (route === id ? ' active' : '')}
+                aria-current={route === id ? 'page' : undefined}
                 onClick={() => navigate(id)}
               >
                 {label}
@@ -252,6 +253,9 @@ function Nav({ route, navigate }: { route: string; navigate: (id: string) => voi
           })}
         </div>
       ))}
+      <div className="navsec" style={{ marginTop: 14 }}>
+        <span style={{ color: 'var(--input)' }}>Blue</span> = input · Black = calculated
+      </div>
     </nav>
   );
 }

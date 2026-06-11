@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { promptDialog } from '../components/dialogs';
 import { NumCell, OptionalNumInput, SelectCell, TextCell, Toggle } from '../components/inputs';
 import { AddRowButton, Card, DeleteRowButton, Legend, Note, Section, TipBox } from '../components/ui';
-import type { LaborRate } from '../engine';
+import { newRowId, type LaborRate } from '../engine';
 import { parseRatesCsv, readFileAsText } from '../export/json';
 import { fmt2, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -51,7 +51,7 @@ export function Rates() {
       let n = 'New LCAT';
       let k = 1;
       while (p.rates.some((x) => x.lcat === n)) n = 'New LCAT ' + ++k;
-      p.rates.push({ lcat: n, direct: 80, rateBasis: '' });
+      p.rates.push({ id: newRowId(), lcat: n, direct: 80, rateBasis: '' });
       for (const a of p.archetypes) a.hc[n] = 0;
     });
 
@@ -67,7 +67,7 @@ export function Rates() {
           const ex = p.rates.find((x) => x.lcat === lcat);
           if (ex) ex.direct = direct;
           else {
-            p.rates.push({ lcat, direct, rateBasis: '' });
+            p.rates.push({ id: newRowId(), lcat, direct, rateBasis: '' });
             for (const a of p.archetypes) a.hc[lcat] = a.hc[lcat] || 0;
           }
         }
@@ -186,7 +186,7 @@ export function Rates() {
             </thead>
             <tbody>
               {s.rates.map((rate, i) => (
-                <tr key={i}>
+                <tr key={rate.id ?? i}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <DeleteRowButton

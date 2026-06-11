@@ -1,6 +1,6 @@
 import { NumCell, NumInput, OptionalNumInput, SelectCell, SelectField, TextCell, TextInput, Toggle } from '../components/inputs';
 import { AddRowButton, Callout, Card, DeleteRowButton, Legend, Note, Section } from '../components/ui';
-import type { ControlInputs } from '../engine';
+import { newRowId, type ControlInputs } from '../engine';
 import { pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -80,7 +80,7 @@ export function Overview() {
             </thead>
             <tbody>
               {c.periods.map((p, i) => (
-                <tr key={i}>
+                <tr key={p.id ?? i}>
                   <td className="calc dim">ALIN {String(i + 1).padStart(3, '0')}</td>
                   <td>
                     <TextCell
@@ -137,7 +137,7 @@ export function Overview() {
           label="Add option period"
           onClick={() =>
             update((x) => {
-              x.control.periods.push({ label: `Option ${x.control.periods.length}`, months: 12, color: 'O&M' });
+              x.control.periods.push({ id: newRowId(), label: `Option ${x.control.periods.length}`, months: 12, color: 'O&M' });
             })
           }
         />
@@ -149,7 +149,8 @@ export function Overview() {
       </div>
       <Card title="Cadence & Capacity">
         <div className="cgrid">
-          {numField('Sprint length', 'sprintLengthWeeks', 'weeks')}
+          {/* sprintLengthWeeks is intentionally not editable here: no
+              computation reads it, so an input would imply price impact. */}
           {numField('Productive hours / sprint / FTE', 'productiveHrs', 'net of leave & ceremonies')}
           {numField('Working sprints / year', 'workingSprintsYr', '~26 less holiday / IPM')}
         </div>

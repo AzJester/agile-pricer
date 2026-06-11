@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NumCell, SelectCell, TextCell, TextInput } from '../components/inputs';
 import { AddRowButton, DeleteRowButton, Section } from '../components/ui';
-import type { Milestone, Phase } from '../engine';
+import { newRowId, type Milestone, type Phase } from '../engine';
 import { addMonths, money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -53,7 +53,7 @@ export function Milestones() {
             </thead>
             <tbody>
               {s.milestones.map((m, i) => (
-                <tr key={i}>
+                <tr key={m.id ?? i}>
                   <td>
                     <TextInput className="cellinput text" value={m.name} onCommit={(v) => rename(i, v)} />
                   </td>
@@ -110,6 +110,7 @@ export function Milestones() {
           onClick={() =>
             update((p) => {
               p.milestones.push({
+                id: newRowId(),
                 name: 'New Milestone',
                 pi: 'PI1',
                 phase: 1,
@@ -159,7 +160,7 @@ export function Teaming() {
                 const d = r.teaming[i] || { handling: 0, price: 0, share: 0, fromLines: false, effectiveSubCost: 0 };
                 const lines = t.lines || [];
                 return (
-                  <React.Fragment key={i}>
+                  <React.Fragment key={t.id ?? i}>
                     <tr>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -233,7 +234,7 @@ export function Teaming() {
                             </thead>
                             <tbody>
                               {lines.map((l, li) => (
-                                <tr key={li}>
+                                <tr key={l.id ?? li}>
                                   <td>
                                     <TextCell
                                       value={l.role}
@@ -293,7 +294,7 @@ export function Teaming() {
                             onClick={() =>
                               update((p) => {
                                 if (!Array.isArray(p.teaming[i].lines)) p.teaming[i].lines = [];
-                                p.teaming[i].lines!.push({ role: 'Sub role', rate: 150, hours: 1000 });
+                                p.teaming[i].lines!.push({ id: newRowId(), role: 'Sub role', rate: 150, hours: 1000 });
                               })
                             }
                           >
@@ -334,7 +335,7 @@ export function Teaming() {
           label="Add subcontractor"
           onClick={() =>
             update((p) => {
-              p.teaming.push({ party: 'Subcontractor ' + (p.teaming.length + 1), subCost: 0 });
+              p.teaming.push({ id: newRowId(), party: 'Subcontractor ' + (p.teaming.length + 1), subCost: 0 });
             })
           }
         />

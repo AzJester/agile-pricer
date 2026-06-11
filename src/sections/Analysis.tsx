@@ -3,7 +3,6 @@ import { Histogram, Tornado, Waterfall } from '../components/charts';
 import { NumInput, Toggle } from '../components/inputs';
 import { Callout, Card, Note, Pill, Section, Stat } from '../components/ui';
 import {
-  compute,
   sensitivity,
   simulate,
   type ComputeResult,
@@ -14,7 +13,7 @@ import {
 import { fmt0, money0, pct } from '../lib/format';
 import type React from 'react';
 import { useActivePursuit, useStore } from '../state/store';
-import { useResult } from '../state/useResult';
+import { computeCached, useResult } from '../state/useResult';
 
 export function Risk() {
   const s = useActivePursuit();
@@ -127,6 +126,13 @@ export function Risk() {
             <Note style={{ marginTop: 10, marginBottom: 0 }}>
               Close agreement supports the deterministic shortcut used in the priced model. A wide gap means the backlog spread
               is skewed enough to prefer the simulated basis.
+              {mc.seed !== null && (
+                <>
+                  {' '}
+                  Seeded run (seed {mc.seed}): the same inputs reproduce these figures exactly, so a reviewed result can be
+                  regenerated.
+                </>
+              )}
             </Note>
           </Card>
         </>
@@ -282,7 +288,9 @@ export function ScenarioCompare() {
     const out: { id: string; name: string; r: ComputeResult; data: Pursuit }[] = [];
     for (const p of pursuits) {
       try {
-        out.push({ id: p.id, name: p.data.name, r: compute(p.data), data: p.data });
+        // Cached on data identity: editing one pursuit no longer re-runs the
+        // engine for every column while this section is open.
+        out.push({ id: p.id, name: p.data.name, r: computeCached(p.data), data: p.data });
       } catch {
         // Skip pursuits that fail to compute rather than blanking the table.
       }

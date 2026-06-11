@@ -104,5 +104,8 @@ export function AddRowButton(props: { label: string; onClick: () => void }) {
 }
 
 export function DeleteRowButton(props: { onClick: () => void; title?: string }) {
-  return <button type="button" className="rowdel" title={props.title ?? 'Remove row'} onClick={props.onClick} />;
+  // The button renders as a pure-CSS glyph; without a name a screen reader
+  // announces an empty button.
+  const name = props.title ?? 'Remove row';
+  return <button type="button" className="rowdel" title={name} aria-label={name} onClick={props.onClick} />;
 }

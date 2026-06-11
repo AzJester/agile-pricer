@@ -1,27 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 /**
  * Inputs hold a local draft while focused and commit on blur or Enter, so
  * each keystroke does not push an undo snapshot or re-run the model.
+ * Escape discards the draft.
  */
 function useDraft(value: string, onCommit: (v: string) => void) {
   const [draft, setDraft] = useState<string | null>(null);
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  // If the external value changes while not editing (undo/redo), show it.
-  useEffect(() => {
-    if (draftRef.current === null) setDraft(null);
-  }, [value]);
+  // blur() dispatches synchronously while the queued setDraft(null) hasn't
+  // landed, so onBlur still sees the old draft; the ref is the cancel signal.
+  const cancelRef = useRef(false);
   return {
     value: draft ?? value,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => setDraft(e.target.value),
     onBlur: () => {
-      if (draft !== null && draft !== value) onCommit(draft);
+      if (!cancelRef.current && draft !== null && draft !== value) onCommit(draft);
+      cancelRef.current = false;
       setDraft(null);
     },
     onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
       if (e.key === 'Escape') {
+        e.stopPropagation(); // editing cancel, not dialog dismissal
+        cancelRef.current = true;
         setDraft(null);
         (e.target as HTMLInputElement).blur();
       }
@@ -34,14 +35,22 @@ interface CommonProps {
   style?: React.CSSProperties;
   placeholder?: string;
   title?: string;
+  /** Accessible name for unlabeled table-cell inputs. */
+  label?: string;
 }
 
 export function NumInput(props: CommonProps & { value: number | string; onCommit: (v: number) => void; step?: number | string }) {
-  const bind = useDraft(String(props.value ?? ''), (v) => props.onCommit(parseFloat(v) || 0));
+  const bind = useDraft(String(props.value ?? ''), (v) => {
+    // Unparseable text (cleared field, "1,000") reverts to the prior value
+    // instead of silently committing 0.
+    const n = parseFloat(v);
+    if (Number.isFinite(n)) props.onCommit(n);
+  });
   return (
     <input
       type="number"
       step={props.step ?? 'any'}
+      aria-label={props.label}
       className={props.className}
       style={props.style}
       placeholder={props.placeholder}
@@ -63,6 +72,7 @@ export function OptionalNumInput(
     <input
       type="number"
       step={props.step ?? 'any'}
+      aria-label={props.label}
       className={props.className}
       style={props.style}
       placeholder={props.placeholder}
@@ -77,6 +87,7 @@ export function TextInput(props: CommonProps & { value: string; onCommit: (v: st
   return (
     <input
       type={props.type ?? 'text'}
+      aria-label={props.label}
       className={props.className}
       style={props.style}
       placeholder={props.placeholder}
@@ -87,13 +98,13 @@ export function TextInput(props: CommonProps & { value: string; onCommit: (v: st
 }
 
 /** Editable numeric table cell (blue = input convention). */
-export function NumCell(props: { value: number | string; onCommit: (v: number) => void; step?: number | string }) {
-  return <NumInput className="cellinput num" value={props.value} onCommit={props.onCommit} step={props.step} />;
+export function NumCell(props: { value: number | string; onCommit: (v: number) => void; step?: number | string; label?: string }) {
+  return <NumInput className="cellinput num" value={props.value} onCommit={props.onCommit} step={props.step} label={props.label} />;
 }
 
 /** Editable text table cell. */
-export function TextCell(props: { value: string; onCommit: (v: string) => void }) {
-  return <TextInput className="cellinput text" value={props.value} onCommit={props.onCommit} />;
+export function TextCell(props: { value: string; onCommit: (v: string) => void; label?: string }) {
+  return <TextInput className="cellinput text" value={props.value} onCommit={props.onCommit} label={props.label} />;
 }
 
 export function SelectCell(props: {

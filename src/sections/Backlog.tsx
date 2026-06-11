@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { BacklogImportDialog } from '../components/BacklogImportDialog';
 import { NumCell, SelectCell, TextCell } from '../components/inputs';
 import { AddRowButton, Callout, DeleteRowButton, Section, TipBox } from '../components/ui';
-import type { BacklogItem } from '../engine';
+import { newRowId, type BacklogItem } from '../engine';
 import { fmt0 } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -74,7 +74,7 @@ export function Backlog() {
                 const exp = (b.low + 4 * b.likely + b.high) / 6;
                 const sd = (b.high - b.low) / 6;
                 return (
-                  <tr key={i}>
+                  <tr key={b.id ?? i}>
                     <td>
                       <TextCell value={b.capability} onCommit={(v) => set(i, 'capability', v)} />
                     </td>
@@ -128,6 +128,7 @@ export function Backlog() {
           onClick={() =>
             update((p) => {
               p.backlog.push({
+                id: newRowId(),
                 capability: 'New Capability',
                 epic: 'New Epic',
                 pi: 'PI1',

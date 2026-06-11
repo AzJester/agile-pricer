@@ -185,7 +185,13 @@ export function Histogram({
     </g>
   );
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ maxWidth: w }}>
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      width="100%"
+      style={{ maxWidth: w }}
+      role="img"
+      aria-label={`Cost distribution histogram from $${fmt0(Math.round(lo))} to $${fmt0(Math.round(hi))}; P50 $${fmt0(Math.round(p50))}, P80 $${fmt0(Math.round(p80))}`}
+    >
       {counts.map((c, i) => {
         const hh = (c / max) * ih;
         return (

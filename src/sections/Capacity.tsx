@@ -1,6 +1,6 @@
 import { NumCell, TextCell } from '../components/inputs';
 import { AddRowButton, Callout, Card, DeleteRowButton, Legend, Note, Pill, Section } from '../components/ui';
-import type { CapacityInputs } from '../engine';
+import { newRowId, type CapacityInputs } from '../engine';
 import { money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -128,7 +128,7 @@ export function Capacity() {
                   termPrice: 0,
                 };
                 return (
-                  <tr key={i}>
+                  <tr key={t.id ?? i}>
                     <td>
                       <TextCell
                         value={t.name}
@@ -206,6 +206,7 @@ export function Capacity() {
               const teams: Record<string, number> = {};
               for (const a of p.archetypes) teams[a.name] = 0;
               p.capacity.tiers.push({
+                id: newRowId(),
                 name: 'New Tier',
                 color: String(p.capacity.colorDefault || 'O&M'),
                 teams,

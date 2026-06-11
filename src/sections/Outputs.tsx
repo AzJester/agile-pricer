@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Note, Pill, Section, Stat } from '../components/ui';
 import { exportMpsCsv } from '../export/csv';
 import { addMonths, money0, money2 } from '../lib/format';
@@ -30,9 +31,12 @@ export function Mps() {
             </tr>
           </thead>
           <tbody>
-            {list.map((row) => (
-              <>
-                <tr key={row.name}>
+            {list.map((row, idx) => (
+              // The fragment, not the inner rows, is the list item — a keyless
+              // fragment degrades reconciliation and warns. Index-qualified
+              // because milestone names are not guaranteed unique.
+              <Fragment key={idx + '::' + row.name}>
+                <tr>
                   <td>
                     <b>{row.name}</b>
                   </td>
@@ -41,21 +45,21 @@ export function Mps() {
                     <b>{money0(row.price)}</b>
                   </td>
                 </tr>
-                <tr key={row.name + '::prime'}>
+                <tr>
                   <td colSpan={2} style={{ paddingLeft: 28, color: 'var(--muted)' }}>
                     Prime share
                   </td>
                   <td className="num calc">{money2(row.primeShare)}</td>
                 </tr>
                 {row.subShares.map((share, k) => (
-                  <tr key={row.name + '::sub' + k}>
+                  <tr key={k}>
                     <td colSpan={2} style={{ paddingLeft: 28, color: 'var(--muted)' }}>
                       {subNames[k] || 'Sub ' + (k + 1)} share
                     </td>
                     <td className="num calc">{money2(share)}</td>
                   </tr>
                 ))}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

@@ -6,7 +6,7 @@ export function SnapshotsDialog(props: { onClose: () => void }) {
   const store = useStore();
   const s = useActivePursuit();
   const snapshots = store.snapshots.filter((x) => x.pursuitId === store.activeId);
-  const trapRef = useFocusTrap<HTMLDivElement>();
+  const trapRef = useFocusTrap<HTMLDivElement>(props.onClose);
 
   return (
     <div
