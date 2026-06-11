@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { CommandPalette } from './components/CommandPalette';
 import { confirmDialog, DialogHost, promptDialog } from './components/dialogs';
 import { SnapshotsDialog } from './components/SnapshotsDialog';
 import { SyncDialog } from './components/SyncDialog';
-import { Pill, statusTone, utilTone } from './components/ui';
+import { MenuButton, Pill, statusTone, utilTone } from './components/ui';
 import { isNewerSchema, looksLikePursuit } from './engine';
+import { advisoryTarget } from './lib/advisories';
 import { exportExcel } from './export/excel';
 import { exportPortfolioJson, exportPursuitJson, readFileAsText } from './export/json';
 import { exportWord } from './export/word';
@@ -131,17 +133,8 @@ function Toolbar() {
       <button type="button" className="tbtn" title="Redo (Ctrl+Y)" disabled={!store.future.length} onClick={store.redo}>
         Redo
       </button>
-      <button type="button" className="tbtn" title="Rename pursuit" onClick={() => void onRename()}>
-        Rename
-      </button>
       <button type="button" className="tbtn" onClick={() => void onNew()}>
         New
-      </button>
-      <button type="button" className="tbtn" onClick={store.duplicatePursuit}>
-        Duplicate
-      </button>
-      <button type="button" className="tbtn" onClick={() => void onDelete()}>
-        Delete
       </button>
       <button
         type="button"
@@ -151,68 +144,64 @@ function Toolbar() {
       >
         Import
       </button>
-      <button
-        type="button"
-        className="tbtn"
-        title="Export this pursuit as JSON"
-        onClick={() => {
-          exportPursuitJson(s);
-          store.showToast('Exported JSON');
-        }}
-      >
-        Export
-      </button>
-      <button
-        type="button"
-        className="tbtn"
-        title="Export all pursuits"
-        onClick={() => {
-          exportPortfolioJson(store.pursuits, store.rateLibrary);
-          store.showToast('Portfolio exported');
-        }}
-      >
-        Portfolio
-      </button>
-      <button
-        type="button"
-        className="tbtn"
-        title="Export to Excel"
-        onClick={() => {
-          store.showToast('Preparing Excel…');
-          exportExcel(s, r).then(
-            () => store.showToast('Excel workbook exported'),
-            () => store.showToast('Excel export failed'),
-          );
-        }}
-      >
-        Excel
-      </button>
-      <button
-        type="button"
-        className="tbtn"
-        title="Export proposal extract to Word"
-        onClick={() => {
-          store.showToast('Preparing Word document…');
-          exportWord(s, r).then(
-            () => store.showToast('Word document exported'),
-            () => store.showToast('Word export failed'),
-          );
-        }}
-      >
-        Word
-      </button>
-      <button type="button" className="tbtn" title="Named point-in-time copies of this pursuit" onClick={() => setShowSnapshots(true)}>
-        Snapshots
-      </button>
-      <button type="button" className="tbtn" title="Push/pull the portfolio to a team sync server" onClick={() => setShowSync(true)}>
-        Sync
-      </button>
-      <button type="button" className="tbtn" title="Show or hide input tips" onClick={store.toggleTips}>
-        Tips: {store.tipsOn ? 'on' : 'off'}
-      </button>
-      <button type="button" className="tbtn primary" onClick={() => window.print()}>
-        Print / PDF
-      </button>
+      <MenuButton
+        label="Export ▾"
+        title="Export this pursuit or the portfolio"
+        items={[
+          {
+            label: 'Pursuit JSON',
+            onClick: () => {
+              exportPursuitJson(s);
+              store.showToast('Exported JSON');
+            },
+          },
+          {
+            label: 'Portfolio JSON (all pursuits)',
+            onClick: () => {
+              exportPortfolioJson(store.pursuits, store.rateLibrary);
+              store.showToast('Portfolio exported');
+            },
+          },
+          'sep',
+          {
+            label: 'Excel workbook (live formulas)',
+            onClick: () => {
+              store.showToast('Preparing Excel…');
+              exportExcel(s, r).then(
+                () => store.showToast('Excel workbook exported'),
+                () => store.showToast('Excel export failed'),
+              );
+            },
+          },
+          {
+            label: 'Word document (proposal extract)',
+            onClick: () => {
+              store.showToast('Preparing Word document…');
+              exportWord(s, r).then(
+                () => store.showToast('Word document exported'),
+                () => store.showToast('Word export failed'),
+              );
+            },
+          },
+          'sep',
+          { label: 'Print / Save PDF', onClick: () => window.print() },
+        ]}
+      />
+      <MenuButton
+        label="⋯"
+        title="More actions"
+        ariaLabel="More actions"
+        items={[
+          { label: 'Rename pursuit…', onClick: () => void onRename() },
+          { label: 'Duplicate pursuit', onClick: store.duplicatePursuit },
+          'sep',
+          { label: 'Snapshots…', onClick: () => setShowSnapshots(true) },
+          { label: 'Sync portfolio…', onClick: () => setShowSync(true) },
+          { label: `Tips: ${store.tipsOn ? 'on' : 'off'}`, onClick: store.toggleTips },
+          'sep',
+          { label: 'Delete pursuit…', danger: true, onClick: () => void onDelete() },
+        ]}
+      />
       <input
         ref={pursuitFileRef}
         type="file"
@@ -233,6 +222,12 @@ function Toolbar() {
 function Nav({ route, navigate }: { route: string; navigate: (id: string) => void }) {
   const s = useActivePursuit();
   const r = useResult();
+  // Which tabs own an open advisory (red beats amber when both point at one tab).
+  const flagTabs = new Map<string, 'warn' | 'bad'>();
+  for (const f of r.flags) {
+    const { tab } = advisoryTarget(f.msg);
+    if (f.sev === 'bad' || !flagTabs.has(tab)) flagTabs.set(tab, f.sev === 'bad' ? 'bad' : 'warn');
+  }
   return (
     <nav>
       {SECTION_GROUPS.map((g) => (
@@ -245,6 +240,7 @@ function Nav({ route, navigate }: { route: string; navigate: (id: string) => voi
               badge = fails ? <span className="badge bad">{fails}</span> : <span className="badge">OK</span>;
             }
             if (id === 'backlog') badge = <span className="badge">{s.backlog.length}</span>;
+            const dot = flagTabs.get(id);
             return (
               <button
                 key={id}
@@ -254,7 +250,10 @@ function Nav({ route, navigate }: { route: string; navigate: (id: string) => voi
                 onClick={() => navigate(id)}
               >
                 {label}
-                {badge}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {dot && <span className={'navdot ' + dot} title="This section has an open advisory" />}
+                  {badge}
+                </span>
               </button>
             );
           })}
@@ -272,7 +271,8 @@ function Toast() {
   const clearToast = useStore((st) => st.clearToast);
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(clearToast, 1900);
+    // Long messages (storage warnings, sync results) need time to read.
+    const t = setTimeout(clearToast, Math.min(6000, Math.max(1900, toast.length * 45)));
     return () => clearTimeout(t);
   }, [toast, clearToast]);
   return (
@@ -286,9 +286,16 @@ export default function App() {
   const [route, navigate] = useHashRoute('start');
   const undo = useStore((st) => st.undo);
   const redo = useStore((st) => st.redo);
+  const [showPalette, setShowPalette] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Ctrl/Cmd+K opens the quick-jump palette even while editing a cell.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowPalette((v) => !v);
+        return;
+      }
       const target = e.target as HTMLElement | null;
       // Let inputs keep their native undo while editing.
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
@@ -332,6 +339,7 @@ export default function App() {
       </div>
       <Toast />
       <DialogHost />
+      {showPalette && <CommandPalette onNavigate={navigate} onClose={() => setShowPalette(false)} />}
     </>
   );
 }

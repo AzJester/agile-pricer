@@ -26,7 +26,7 @@ export function StartHere() {
       }
     >
       <TipBox>
-        Tip boxes like this one appear on every tab while <b>Tips</b> is on (toolbar, top right). New users: leave them on for your first pursuit — each explains what the screen wants from you and what to watch out for.
+        Tip boxes like this one appear on every tab while <b>Tips</b> is on (⋯ menu in the toolbar). New users: leave them on for your first pursuit — each explains what the screen wants from you and what to watch out for.
       </TipBox>
       <Callout color="var(--twilight)">
         <b>This tool is illustrative.</b> Every figure is a placeholder. Do not enter CUI, controlled, or proprietary program
@@ -87,7 +87,7 @@ export function StartHere() {
           choose deliberately.
         </div>
         <Note style={{ marginTop: 12, marginBottom: 0 }}>
-          Tips appear on the input-heavy tabs. Toggle them off with the <b>Tips</b> button in the top bar once you know your
+          Tips appear on the input-heavy tabs. Toggle them off via <b>Tips</b> in the toolbar's ⋯ menu once you know your
           way around.
         </Note>
       </Card>

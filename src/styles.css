@@ -20,7 +20,7 @@
   --line: #e2e4ea;
   --line-2: #d2d5de;
   --txt: #222230;
-  --muted: #6a6d7d;
+  --muted: #565a69;
   --input: #0b58d0; /* blue = input, model convention */
   --radius: 10px;
   --shadow: 0 1px 2px rgba(34, 34, 48, 0.06), 0 8px 24px rgba(34, 34, 48, 0.07);
@@ -333,7 +333,7 @@ main {
 table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 th,
 td {
@@ -343,7 +343,7 @@ td {
   vertical-align: middle;
 }
 th {
-  font-size: 10.5px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: var(--muted);
@@ -395,8 +395,10 @@ tfoot td {
   min-width: 66px;
 }
 .tablewrap {
-  overflow-x: auto;
-  overflow-y: visible;
+  /* Own both scroll axes so the sticky thead/first-column anchors work:
+     sticky cannot escape an overflow-x-only ancestor. */
+  overflow: auto;
+  max-height: 74vh;
   width: 100%;
 }
 .tablewrap > table {
@@ -865,4 +867,113 @@ td.calc.dim {
   .dashgrid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Sticky first column: keep the row's identity while scrolling wide tables */
+.tablewrap th {
+  z-index: 3;
+}
+.tablewrap td:first-child {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 2;
+}
+.tablewrap th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+}
+.tablewrap tbody tr:hover td:first-child {
+  background: #fbfcfe;
+}
+.tablewrap tfoot td:first-child {
+  background: #f5f7fb;
+}
+
+/* Toolbar dropdown menus */
+.menuwrap {
+  position: relative;
+  display: inline-block;
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #fff;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(20, 20, 40, 0.22);
+  padding: 6px;
+  min-width: 230px;
+  z-index: 70;
+}
+.menu .mitem {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  align-items: center;
+  background: none;
+  border: 0;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.menu .mitem:hover,
+.menu .mitem:focus-visible {
+  background: #f1effa;
+}
+.menu .mitem.danger {
+  color: var(--twilight);
+}
+.menu .msep {
+  height: 1px;
+  background: var(--line);
+  margin: 5px 4px;
+}
+
+/* Nav advisory dots */
+.navdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.navdot.warn {
+  background: var(--supernova);
+}
+.navdot.bad {
+  background: var(--twilight);
+}
+
+/* Command palette (Ctrl+K) */
+.palette-list {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+.palette-item {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 10px;
+  background: none;
+  border: 0;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.palette-item.active,
+.palette-item:hover {
+  background: #f1effa;
+}
+.palette-item .grp {
+  color: var(--muted);
+  font-size: 11px;
 }

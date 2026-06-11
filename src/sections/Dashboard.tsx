@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { AreaLine, colorForMoney, StackedBars, Waterfall } from '../components/charts';
 import { Callout, Card, Note, Pill, Section, Stat, utilTone, TipBox } from '../components/ui';
 import { monthlyPhasing } from '../engine';
+import { advisoryTarget } from '../lib/advisories';
 import { exportFundingCsv } from '../export/csv';
 import { addMonths, fmt0, money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -32,23 +33,6 @@ function Jump(props: { to: string; title: string; children: React.ReactNode }) {
       {props.children}
     </div>
   );
-}
-
-/** Route an advisory to the screen that fixes it, keyed off its wording. */
-function advisoryTarget(msg: string): { tab: string; label: string } {
-  const rules: [RegExp, string, string][] = [
-    [/capacity reserve/i, 'velocity', 'Velocity & Reserve'],
-    [/utilization/i, 'phasing', 'Time-Phasing'],
-    [/effective reserve/i, 'velocity', 'Velocity & Reserve'],
-    [/budget ceiling/i, 'overview', 'Overview'],
-    [/ODC/, 'odc', 'Other Direct Costs'],
-    [/milestone price/i, 'milestones', 'Milestones'],
-    [/velocity has fewer|historical sample/i, 'velocity', 'Velocity & Reserve'],
-    [/rate.*basis|documented basis/i, 'rates', 'Labor Rates'],
-    [/tier/i, 'capacity', 'Capacity Tiers'],
-  ];
-  for (const [re, tab, label] of rules) if (re.test(msg)) return { tab, label };
-  return { tab: 'checks', label: 'Integrity Checks' };
 }
 
 function FlagsBanner() {
