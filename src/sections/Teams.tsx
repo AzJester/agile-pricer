@@ -1,5 +1,5 @@
 import { NumCell, TextInput } from '../components/inputs';
-import { AddRowButton, Card, DeleteRowButton, Section } from '../components/ui';
+import { AddRowButton, Card, DeleteRowButton, Section, TipBox } from '../components/ui';
 import { newRowId } from '../engine';
 import { fmt0, money0 } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -41,6 +41,9 @@ export function Teams() {
       title="Team Archetypes"
       sub="Define standard team shapes by headcount per LCAT. Cost per team-sprint = Σ(headcount × loaded Yr1 rate) × productive hours/sprint. Backlog rows draw velocity and team cost from the archetype they reference. Use the bin icon by an archetype name to remove it; at least one must remain."
     >
+      <TipBox>
+        An archetype is a reusable team shape: headcount per LCAT plus a steady-state velocity. The loaded cost of one team-sprint is what prices every backlog point, and <b>velocity is the most price-sensitive number in the model</b> — check the Sensitivity tab after you set it.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>Archetype Headcount Matrix</h3>

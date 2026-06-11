@@ -1,5 +1,5 @@
 import { NumCell, NumInput, OptionalNumInput, SelectCell, SelectField, TextCell, TextInput, Toggle } from '../components/inputs';
-import { AddRowButton, Callout, Card, DeleteRowButton, Legend, Note, Section } from '../components/ui';
+import { AddRowButton, Callout, Card, DeleteRowButton, Legend, Note, Section, TipBox } from '../components/ui';
 import { newRowId, type ControlInputs } from '../engine';
 import { pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -38,6 +38,9 @@ export function Overview() {
       title="Overview & Control"
       sub="Global switches and assumptions. These drive every downstream sheet: rates, capacity, escalation, reserve, fee, and the milestone payment schedule. Edit the blue values."
     >
+      <TipBox>
+        Set this tab up first — periods, cadence, wrap rates, reserve method — because every other tab prices against it. Exploring a what-if? <b>Duplicate</b> the pursuit (top bar) and edit the copy; Scenario Compare shows the deltas side by side, and Undo (Ctrl+Z) reverses any edit.
+      </TipBox>
       <Callout>
         <b>Reusable across pursuits.</b> Start from the reference baseline or create a blank pursuit (New). Each pursuit saves
         automatically in your browser; use Export JSON to share or archive. Ships with illustrative placeholders and contains

@@ -112,6 +112,19 @@ test('a custom location typed in one row joins the dropdown choices for all rows
   await expect(page.locator(`datalist[id="${degreeList}"] option[value="DBA"]`)).toHaveCount(1);
 });
 
+test('every section shows new-user guidance while Tips is on', async ({ page }) => {
+  const sections = [
+    'start', 'overview', 'rates', 'teams', 'backlog', 'velocity', 'phasing', 'loe', 'psupport', 'odc',
+    'milestones', 'teaming', 'results', 'mps', 'boe', 'value', 'checks', 'capacity', 'dashboard',
+    'funding', 'staffing', 'risk', 'sensitivity', 'margin', 'scenario',
+  ];
+  await page.goto('/');
+  for (const id of sections) {
+    await page.goto('/#/' + id);
+    await expect(page.locator('.tip').first(), `tip on #${id}`).toBeVisible();
+  }
+});
+
 test('Escape closes the snapshots dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Snapshots' }).click();

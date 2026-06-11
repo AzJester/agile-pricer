@@ -1,5 +1,5 @@
 import { NumCell, SelectCell, TextCell, Toggle } from '../components/inputs';
-import { AddRowButton, Callout, DeleteRowButton, Section } from '../components/ui';
+import { AddRowButton, Callout, DeleteRowButton, Section, TipBox } from '../components/ui';
 import { newRowId, type LoeLine, type Phase, type PSupportLine } from '../engine';
 import { money0 } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -26,6 +26,9 @@ export function Loe() {
       title="Persistent Level-of-Effort"
       sub="Staffed, time-based effort that is not story-point work — cATO sustainment, 24/7 operations, on-call. Monthly cost = FTE × loaded rate × 173.2 hrs × escalation(rate year). Phase 1 vs 2 feeds the milestone allocation."
     >
+      <TipBox>
+        LOE prices steady-state operations (cATO, help desk, 24/7 ops) that never burn down the backlog: FTE × loaded rate × 173.2 hours/month × months, starting at the chosen period. Set <b>Rate Yr</b> to price option-year staffing at escalated rates.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>LOE Lines</h3>
@@ -146,6 +149,9 @@ export function PSupport() {
         />
       }
     >
+      <TipBox>
+        This prices the office that runs the contract — PM, finance, contracts, business management. The Overview toggle includes or excludes it from the priced total; keep it filled in either way so the internal margin story is complete.
+      </TipBox>
       {!inc && (
         <Callout color="var(--supernova)">
           Program support is currently <b>excluded</b> from the priced total. Lines below are tracked but not added to the

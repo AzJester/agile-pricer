@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { Note, Pill, Section, Stat } from '../components/ui';
+import { Note, Pill, Section, Stat, TipBox } from '../components/ui';
 import { exportMpsCsv } from '../export/csv';
 import { addMonths, money0, money2 } from '../lib/format';
 import { useActivePursuit } from '../state/store';
@@ -77,6 +77,9 @@ export function Mps() {
         </button>
       }
     >
+      <TipBox>
+        This is the customer-facing schedule (Attachment 10 shape) — reserve is already inside each milestone price via the gross-up, so don't add a separate reserve line. Export CSV drops it straight into the attachment.
+      </TipBox>
       <div
         className="resgrid"
         style={{ gridTemplateColumns: `repeat(${Math.min(4, r.periods.length + 1)},1fr)`, marginBottom: 18 }}
@@ -108,6 +111,9 @@ export function Boe() {
       title="BOE Traceability"
       sub="Requirement-to-price chain for evaluation-notice defense: three-point points → reserve → ramp → sprints → escalated labor → +LOE/ODC/fixed → gross-up → price. The total ties to the quoted price."
     >
+      <TipBox>
+        Built for evaluation-notice defense: each capability traces points → reserve → sprints → dollars, and the bottom line ties to the quoted price. Nothing here is editable on purpose — fix upstream inputs (Backlog, Rates) and this view follows.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>Capability Chain @ {s.control.confidence}</h3>
@@ -187,6 +193,9 @@ export function ValueMap() {
       title="Value Map"
       sub="Price per value increment for SOO value-based evaluation. Each value-gated milestone carries a KPI and acceptance threshold; payment is gated on demonstrated value. Edit KPIs and thresholds on the Milestones tab."
     >
+      <TipBox>
+        Only milestones marked <b>Gated</b> on the Milestones tab appear here. Give each one a KPI and acceptance threshold there; this is the table to walk through when the SOO scores value-based payment.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>Value-Gated Milestones</h3>
@@ -251,6 +260,9 @@ export function Checks() {
         </Pill>
       }
     >
+      <TipBox>
+        Quote only when all 13 read OK. A FAIL names its own cause — the most common is a backlog row whose Milestone doesn't match any name on the Milestones tab.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>Reconciliation</h3>

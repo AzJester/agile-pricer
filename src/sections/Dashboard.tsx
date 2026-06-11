@@ -1,5 +1,5 @@
 import { colorForMoney, StackedBars, Waterfall } from '../components/charts';
-import { Callout, Card, Note, Pill, Section, Stat, utilTone } from '../components/ui';
+import { Callout, Card, Note, Pill, Section, Stat, utilTone, TipBox } from '../components/ui';
 import { exportFundingCsv } from '../export/csv';
 import { money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -54,6 +54,9 @@ export function Dashboard() {
         </button>
       }
     >
+      <TipBox>
+        The pre-review health check: KPIs, advisories, and reconciliation in one place. Chase anything amber or red back to its source tab — the advisory text names it.
+      </TipBox>
       <FlagsBanner />
       <div className="resgrid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
         <Stat hero k={`Total Price (${s.control.confidence})`} v={money0(r.total)} sub={`Gross-up ${r.grossup.toFixed(3)}×`} />
@@ -137,6 +140,9 @@ export function Funding() {
       title="Funding & Color of Money"
       sub="Milestone payments mapped to the federal fiscal year of completion (Oct–Sep) and tagged by appropriation. Each option period is its own funding action; appropriation types generally cannot be commingled. Planning support, not an obligation schedule."
     >
+      <TipBox>
+        Milestone prices roll into federal fiscal years (Oct–Sep) by completion date, split by each period's color of money. If an FY looks lumpy, slide milestone month offsets instead of touching dollars.
+      </TipBox>
       <Card title="Appropriation Tagging (per contract period)">
         <div className="cgrid">
           {s.control.periods.map((p, i) => (

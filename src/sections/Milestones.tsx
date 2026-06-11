@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NumCell, SelectCell, TextCell, TextInput } from '../components/inputs';
-import { AddRowButton, DeleteRowButton, Section } from '../components/ui';
+import { AddRowButton, DeleteRowButton, Section, TipBox } from '../components/ui';
 import { newRowId, type Milestone, type Phase } from '../engine';
 import { addMonths, money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -31,6 +31,9 @@ export function Milestones() {
       title="Milestones"
       sub="Payable milestone definitions. Backlog labor maps here by matching the Milestone name. LOE and ODC are allocated across same-phase milestones pro-rata by mapped labor. Month offset (from PoP start) sets the estimated completion date. The last milestone carries the whole-dollar rounding plug so prices tie to the total."
     >
+      <TipBox>
+        Milestone names are the join key: backlog labor maps here by exact name match, and renaming a milestone updates its backlog rows automatically. Month offsets drive completion dates and the funding-by-FY rollup; the rounding plug keeps the schedule tied to the total.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>Payable Milestones</h3>
@@ -139,6 +142,9 @@ export function Teaming() {
       title="Teaming"
       sub="Subcontractors carry their cost plus prime handling; the prime takes the residual of total price after subs. Enter a sub's cost manually, or expand a row to build it bottom-up from the sub's fully burdened rates × hours. Shares feed the per-milestone prime/sub split on the schedule."
     >
+      <TipBox>
+        Enter each sub at cost — handling and any sub fee stack on top, and the prime takes the residual of total price. Expand a row to build the sub bottom-up from burdened rates × hours when you hold their quote.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>Subcontractors & Prime Split</h3>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Histogram, Tornado, Waterfall } from '../components/charts';
 import { NumInput, Toggle } from '../components/inputs';
-import { Callout, Card, Note, Pill, Section, Stat } from '../components/ui';
+import { Callout, Card, Note, Pill, Section, Stat, TipBox } from '../components/ui';
 import {
   sensitivity,
   simulate,
@@ -39,6 +39,9 @@ export function Risk() {
         </button>
       }
     >
+      <TipBox>
+        Run the trials, then quote the simulated P80 next to the deterministic one — close agreement is itself a finding worth citing. Correlation 0.3–0.5 is the honest default, and runs are seeded: the same inputs reproduce the same distribution in front of a reviewer.
+      </TipBox>
       <Card title="Simulation Assumptions">
         <div className="cgrid">
           <div className="field">
@@ -173,6 +176,9 @@ export function Sensitivity() {
         </div>
       }
     >
+      <TipBox>
+        Start at ±20%. The top bar tells you where evidence matters most — a long Velocity bar means the velocity basis (history, ramp) carries the bid and needs the strongest documentation.
+      </TipBox>
       {res ? (
         <>
           <Card title={`Tornado — price swing at ±${Math.round(res.pct * 100)}%`}>
@@ -245,6 +251,9 @@ export function MarginWalk() {
       title="Margin Walk (internal view)"
       sub="What you propose, and how the financial position behind it is built. Cost is the loaded estimate the portfolio is held to; everything above it is reserve, fee, and any price-to-win move. This is the internal companion to the customer-facing price."
     >
+      <TipBox>
+        Internal only — keep this view out of the customer package. Margin = reserve + fee + PTW; a negative PTW means you're buying the job, and this view shows exactly how much.
+      </TipBox>
       <div className="resgrid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
         <Stat k="Proposed Price" v={money0(r.total)} />
         <Stat k={`Internal Cost (${s.control.confidence})`} v={money0(cost)} />
@@ -333,6 +342,9 @@ export function ScenarioCompare() {
       title="Scenario Compare"
       sub="Every saved pursuit side by side. Duplicate a pursuit (top bar), change one assumption, and read the deltas here without losing the original. Pin one column as the baseline to see dollar deltas against it."
     >
+      <TipBox>
+        Duplicate a pursuit (top bar), change one assumption, and read the deltas here. Pin a column as the baseline to track dollar movement — handy against an as-submitted snapshot restored as a copy.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>Side-by-Side</h3>
