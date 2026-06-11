@@ -49,8 +49,33 @@ function endpoint(cfg: SyncConfig): string {
   return cfg.url.replace(/\/+$/, '') + '/api/portfolio/' + encodeURIComponent(cfg.portfolioId || 'default');
 }
 
+/** True when the browser will block the request as mixed content. */
+export function isMixedContent(url: string): boolean {
+  return typeof location !== 'undefined' && location.protocol === 'https:' && /^http:\/\//i.test(url.trim());
+}
+
+const FETCH_TIMEOUT_MS = 15_000;
+
+async function request(cfg: SyncConfig, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(endpoint(cfg), { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  } catch (e) {
+    // fetch network failures are a bare TypeError; translate to something a
+    // user can act on instead of "Failed to fetch".
+    if (e instanceof DOMException && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+      throw new Error(`No response after ${FETCH_TIMEOUT_MS / 1000}s — is the sync server running?`);
+    }
+    if (isMixedContent(cfg.url)) {
+      throw new Error(
+        'Blocked as mixed content: this page is HTTPS, so the browser refuses a plain http:// sync URL. Serve the sync server behind TLS.',
+      );
+    }
+    throw new Error('Could not reach the server — check the URL and that the sync server is running.');
+  }
+}
+
 export async function pullPortfolio(cfg: SyncConfig): Promise<RemotePortfolio> {
-  const res = await fetch(endpoint(cfg), { headers: headers(cfg) });
+  const res = await request(cfg, { headers: headers(cfg) });
   if (res.status === 404) throw new Error('No portfolio on the server yet — push first.');
   if (res.status === 401) throw new Error('Unauthorized — check the access token.');
   if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -61,7 +86,7 @@ export async function pushPortfolio(
   cfg: SyncConfig,
   data: { pursuits: PursuitEntry[]; rateLibrary: IndirectRateSet[] },
 ): Promise<number> {
-  const res = await fetch(endpoint(cfg), {
+  const res = await request(cfg, {
     method: 'PUT',
     headers: headers(cfg),
     body: JSON.stringify({ rev: cfg.rev, data }),

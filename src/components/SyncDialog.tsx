@@ -3,6 +3,7 @@ import { useFocusTrap } from './dialogs';
 import { confirmDialog } from './dialogs';
 import {
   ConflictError,
+  isMixedContent,
   loadSyncConfig,
   pullPortfolio,
   pushPortfolio,
@@ -20,14 +21,21 @@ export function SyncDialog(props: { onClose: () => void }) {
   const store = useStore();
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [busy, setBusy] = useState(false);
-  const trapRef = useFocusTrap<HTMLDivElement>(props.onClose);
   const [status, setStatus] = useState<string>('');
 
-  const update = (patch: Partial<SyncConfig>) => {
-    const next = { ...cfg, ...patch };
+  // Edits stay in component state; the config (token included) persists to
+  // localStorage on action or close, not on every keystroke.
+  const update = (patch: Partial<SyncConfig>) => setCfg((c) => ({ ...c, ...patch }));
+  const persistAnd = (next: SyncConfig) => {
     setCfg(next);
     saveSyncConfig(next);
   };
+  const close = () => {
+    saveSyncConfig(cfg);
+    props.onClose();
+  };
+  const trapRef = useFocusTrap<HTMLDivElement>(close);
+  const mixed = isMixedContent(cfg.url);
 
   const doPush = async () => {
     setBusy(true);
@@ -54,7 +62,7 @@ export function SyncDialog(props: { onClose: () => void }) {
           throw e;
         }
       }
-      update({ rev });
+      persistAnd({ ...cfg, rev });
       setStatus(`Pushed ${store.pursuits.length} pursuits (rev ${rev}).`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Push failed');
@@ -73,12 +81,15 @@ export function SyncDialog(props: { onClose: () => void }) {
         `The server has ${n} pursuits (rev ${remote.rev}, saved ${new Date(remote.savedAt).toLocaleString()}). This replaces your local pursuits. Export a local backup first if unsure.`,
         true,
       );
-      if (ok && n) {
-        store.replaceAll(remote.data.pursuits, remote.data.rateLibrary ?? store.rateLibrary);
-        update({ rev: remote.rev });
-        setStatus(`Pulled ${n} pursuits (rev ${remote.rev}).`);
-      } else {
+      if (!ok) {
         setStatus('Pull cancelled.');
+      } else if (!n) {
+        // Confirming an empty server portfolio used to report "cancelled".
+        setStatus('Server portfolio is empty — nothing to apply.');
+      } else {
+        store.replaceAll(remote.data.pursuits, remote.data.rateLibrary ?? store.rateLibrary);
+        persistAnd({ ...cfg, rev: remote.rev });
+        setStatus(`Pulled ${n} pursuits (rev ${remote.rev}).`);
       }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Pull failed');
@@ -90,7 +101,7 @@ export function SyncDialog(props: { onClose: () => void }) {
     <div
       className="dialog-backdrop"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) props.onClose();
+        if (e.target === e.currentTarget) close();
       }}
     >
       <div ref={trapRef} className="dialog" role="dialog" aria-modal="true" aria-label="Portfolio sync" style={{ minWidth: 460 }}>
@@ -102,8 +113,14 @@ export function SyncDialog(props: { onClose: () => void }) {
         <div style={{ display: 'grid', gap: 8 }}>
           <label style={{ fontSize: 12 }}>
             Server URL
-            <input type="text" placeholder="http://pricing-server:8787" value={cfg.url} onChange={(e) => update({ url: e.target.value })} />
+            <input type="text" placeholder="https://pricing-server:8787" value={cfg.url} onChange={(e) => update({ url: e.target.value })} />
           </label>
+          {mixed && (
+            <div className="msg" style={{ color: 'var(--twilight, #a33)', fontWeight: 600 }}>
+              This page is served over HTTPS, so the browser will block a plain http:// sync URL as mixed content. Use
+              https:// (run the sync server behind TLS), or run the app from the same network origin.
+            </div>
+          )}
           <label style={{ fontSize: 12 }}>
             Portfolio id
             <input type="text" value={cfg.portfolioId} onChange={(e) => update({ portfolioId: e.target.value })} />
@@ -119,7 +136,7 @@ export function SyncDialog(props: { onClose: () => void }) {
           </div>
         )}
         <div className="row">
-          <button type="button" className="tbtn" onClick={props.onClose}>
+          <button type="button" className="tbtn" onClick={close}>
             Close
           </button>
           <button type="button" className="tbtn" disabled={busy || !cfg.url} onClick={() => void doPull()}>
