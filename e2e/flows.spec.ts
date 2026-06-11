@@ -84,6 +84,19 @@ test('Escape discards an in-progress cell edit instead of committing it', async 
   await expect(lowCell).not.toHaveValue('500');
 });
 
+test('rate basis columns offer dropdown choices and accept custom values', async ({ page }) => {
+  await page.goto('/#/rates');
+  const row = page.locator('table tbody tr').first();
+  for (const label of ['Skill level', 'Years of experience', 'Degree', 'Location / market', 'Clearance', 'Rate source']) {
+    // Each combo input is wired to a datalist of choices.
+    await expect(row.locator(`input[aria-label="${label}"]`)).toHaveAttribute('list', /.+/);
+  }
+  const degree = row.locator('input[aria-label="Degree"]');
+  await degree.fill('JD'); // not in the suggestion list — custom values must commit
+  await degree.press('Enter');
+  await expect(degree).toHaveValue('JD');
+});
+
 test('Escape closes the snapshots dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Snapshots' }).click();
