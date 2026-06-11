@@ -1,5 +1,5 @@
 import { NumCell, SelectCell, TextCell } from '../components/inputs';
-import { AddRowButton, Card, DeleteRowButton, Note, Section } from '../components/ui';
+import { AddRowButton, Card, DeleteRowButton, Note, Section, TipBox } from '../components/ui';
 import { newRowId, type OdcLine } from '../engine';
 import { money0 } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -39,6 +39,9 @@ export function Odc() {
       title="Other Direct Costs"
       sub="Non-labor, entered in Year-1 dollars and escalated per year. Material handling (G&A on ODC) is added. Record a basis for each line (unit × quantity × periods) so the estimate is defensible. Year-1 spend phases to the base period; later years to the option period."
     >
+      <TipBox>
+        Enter Year-1 dollars per program year — escalation and material handling are applied for you. Dollars beyond the period of performance raise an advisory instead of pricing silently; extend the PoP or trim those year columns.
+      </TipBox>
       <Card title="Completeness Checklist">
         <div>
           {CHECKLIST.map((cat) => {

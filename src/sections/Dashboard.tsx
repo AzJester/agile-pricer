@@ -1,9 +1,36 @@
 import { colorForMoney, StackedBars, Waterfall } from '../components/charts';
-import { Callout, Card, Note, Pill, Section, Stat, utilTone } from '../components/ui';
+import { Callout, Card, Note, Pill, Section, Stat, utilTone, TipBox } from '../components/ui';
 import { exportFundingCsv } from '../export/csv';
-import { money0, pct } from '../lib/format';
+import { addMonths, money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
+
+/** Hash navigation for dashboard drill-through (picked up by useHashRoute). */
+function go(id: string) {
+  window.location.hash = '#/' + id;
+  window.scrollTo(0, 0);
+}
+
+/** Wraps a read-only widget so it drills through to the tab that owns it. */
+function Jump(props: { to: string; title: string; children: React.ReactNode }) {
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      title={props.title}
+      style={{ cursor: 'pointer' }}
+      onClick={() => go(props.to)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          go(props.to);
+        }
+      }}
+    >
+      {props.children}
+    </div>
+  );
+}
 
 function FlagsBanner() {
   const r = useResult();
@@ -28,12 +55,13 @@ function FlagsBanner() {
   );
 }
 
-function fundingChart(r: ReturnType<typeof useResult>) {
+function fundingChart(r: ReturnType<typeof useResult>, onBarClick?: () => void) {
   return (
     <StackedBars
       rows={r.funding.rows.map((row) => ({ label: 'FY' + String(row.fy).slice(2), values: row.byColor }))}
       keys={r.funding.colors}
       colors={r.funding.colors.map((c, i) => colorForMoney(c, i))}
+      onBarClick={onBarClick}
     />
   );
 }
@@ -43,6 +71,9 @@ export function Dashboard() {
   const r = useResult();
   const ptw = r.total - r.subtotal;
   const cfMax = Math.max(...r.msRows.map((m) => m.price), 1);
+  // One gutter width for all cash-flow labels (ch ≈ one character at 11px),
+  // capped so very long names wrap to a second line rather than truncate.
+  const cfLabelCh = Math.min(Math.max(...r.msRows.map((m) => m.name.length), 10) + 1, 34);
 
   return (
     <Section
@@ -54,43 +85,57 @@ export function Dashboard() {
         </button>
       }
     >
+      <TipBox>
+        The pre-review health check: KPIs, advisories, and reconciliation in one place — and every widget drills through:
+        click a KPI, a waterfall bar, a milestone row, or an FY bar to open the tab that owns it. Hover anything for the
+        exact figure. Chase anything amber or red back to its source tab — the advisory text names it.
+      </TipBox>
       <FlagsBanner />
       <div className="resgrid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-        <Stat hero k={`Total Price (${s.control.confidence})`} v={money0(r.total)} sub={`Gross-up ${r.grossup.toFixed(3)}×`} />
-        <Stat
-          k="Phase 1 / Phase 2"
-          vStyle={{ fontSize: 15 }}
-          v={
-            <>
-              {money0(r.phase1Price)}
-              <br />
-              <small>{money0(r.phase2Price)}</small>
-            </>
-          }
-        />
-        <Stat
-          k="Reserve / Fee"
-          vStyle={{ fontSize: 15 }}
-          v={
-            <>
-              {pct(r.resPct)}
-              <br />
-              <small>{pct(s.control.fee)} fee</small>
-            </>
-          }
-        />
-        <Stat
-          k="Utilization"
-          v={
-            <>
-              {pct(r.util)} <Pill tone={utilTone(r.util)}>{r.util < 0.7 ? 'Under' : r.util > 1.05 ? 'Over' : 'OK'}</Pill>
-            </>
-          }
-        />
+        <Jump to="results" title="Open Pricing Results">
+          <Stat hero k={`Total Price (${s.control.confidence})`} v={money0(r.total)} sub={`Gross-up ${r.grossup.toFixed(3)}×`} />
+        </Jump>
+        <Jump to="mps" title="Open the Milestone Payment Schedule">
+          <Stat
+            k="Phase 1 / Phase 2"
+            vStyle={{ fontSize: 15 }}
+            v={
+              <>
+                {money0(r.phase1Price)}
+                <br />
+                <small>{money0(r.phase2Price)}</small>
+              </>
+            }
+          />
+        </Jump>
+        <Jump to="results" title="Open Pricing Results">
+          <Stat
+            k="Reserve / Fee"
+            vStyle={{ fontSize: 15 }}
+            v={
+              <>
+                {pct(r.resPct)}
+                <br />
+                <small>{pct(s.control.fee)} fee</small>
+              </>
+            }
+          />
+        </Jump>
+        <Jump to="phasing" title="Open Demand vs Funded Capacity">
+          <Stat
+            k="Utilization"
+            v={
+              <>
+                {pct(r.util)} <Pill tone={utilTone(r.util)}>{r.util < 0.7 ? 'Under' : r.util > 1.05 ? 'Over' : 'OK'}</Pill>
+              </>
+            }
+          />
+        </Jump>
       </div>
       <div style={{ marginTop: 18 }}>
         <Card title="Cost-to-Price Waterfall">
           <Waterfall
+            onStepClick={() => go('results')}
             steps={[
               { label: 'Base cost', delta: r.base },
               { label: 'Reserve', delta: r.resD },
@@ -103,24 +148,40 @@ export function Dashboard() {
       </div>
       <Card title="Milestone Cash Flow">
         {r.msRows.length === 0 && <div className="sub">No milestones.</div>}
-        {r.msRows.map((m) => (
-          <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '3px 0' }}>
-            <div style={{ width: 150, fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>
-              {m.name.length > 11 ? m.name.slice(0, 10) + '…' : m.name}
-            </div>
-            <div style={{ flex: 1, background: '#eef', borderRadius: 4 }}>
-              <div
-                style={{ width: `${((m.price / cfMax) * 100).toFixed(1)}%`, background: 'var(--force)', height: 14, borderRadius: 4 }}
-              />
-            </div>
-            <div className="mono" style={{ width: 110, fontSize: 11, textAlign: 'right' }}>
+        {r.msRows.map((m, idx) => (
+          <button
+            key={idx + '::' + m.name}
+            type="button"
+            className="dashrow"
+            onClick={() => go('mps')}
+            title={`${m.name} — ${money0(m.price)} (${pct(r.total ? m.price / r.total : 0)} of total) · est. ${addMonths(s.control.popStart, m.monthOffset)} · click to open the payment schedule`}
+          >
+            {/* Uniform label gutter sized to the longest name; long names wrap
+                instead of truncating. */}
+            <span
+              style={{
+                width: `${cfLabelCh}ch`,
+                fontSize: 11,
+                color: 'var(--muted)',
+                textAlign: 'right',
+                whiteSpace: 'normal',
+                lineHeight: 1.25,
+                flexShrink: 0,
+              }}
+            >
+              {m.name}
+            </span>
+            <span className="dashbar">
+              <i style={{ width: `${((m.price / cfMax) * 100).toFixed(1)}%` }} />
+            </span>
+            <span className="mono" style={{ width: 110, fontSize: 11, textAlign: 'right', flexShrink: 0 }}>
               {money0(m.price)}
-            </div>
-          </div>
+            </span>
+          </button>
         ))}
       </Card>
       <Card title="Funding by Fiscal Year (color of money)">
-        {r.funding.rows.length ? fundingChart(r) : <div className="sub">No milestone payments to schedule.</div>}
+        {r.funding.rows.length ? fundingChart(r, () => go('funding')) : <div className="sub">No milestone payments to schedule.</div>}
       </Card>
     </Section>
   );
@@ -137,6 +198,9 @@ export function Funding() {
       title="Funding & Color of Money"
       sub="Milestone payments mapped to the federal fiscal year of completion (Oct–Sep) and tagged by appropriation. Each option period is its own funding action; appropriation types generally cannot be commingled. Planning support, not an obligation schedule."
     >
+      <TipBox>
+        Milestone prices roll into federal fiscal years (Oct–Sep) by completion date, split by each period's color of money. If an FY looks lumpy, slide milestone month offsets instead of touching dollars.
+      </TipBox>
       <Card title="Appropriation Tagging (per contract period)">
         <div className="cgrid">
           {s.control.periods.map((p, i) => (

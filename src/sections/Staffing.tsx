@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { StackedBars } from '../components/charts';
 import { Toggle } from '../components/inputs';
-import { Card, Note, Section, Stat } from '../components/ui';
+import { Card, Note, Section, Stat, TipBox } from '../components/ui';
 import { monthlyPhasing } from '../engine';
 import { csvRows, downloadText } from '../export/download';
 import { addMonths, fileSafe, money0 } from '../lib/format';
@@ -73,6 +73,9 @@ export function Staffing() {
         </span>
       }
     >
+      <TipBox>
+        The cost stack spread across calendar months plus the implied FTE plan — totals tie exactly to the engine. Use the FTE row for the staffing-plan volume; a sudden step usually means a PI-year boundary, not an error.
+      </TipBox>
       <div className="resgrid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
         <Stat k={atPrice ? 'Total at price' : 'Total cost spread'} v={money0(phased.totals.total * mult)} />
         <Stat k="Months phased" v={String(phased.months.length)} />

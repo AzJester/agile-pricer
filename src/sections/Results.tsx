@@ -1,4 +1,4 @@
-import { Card, Note, Pill, Section, Stat, statusTone, utilTone } from '../components/ui';
+import { Card, Note, Pill, Section, Stat, statusTone, utilTone, TipBox } from '../components/ui';
 import { fmt0, money0, money2, pct } from '../lib/format';
 import { useActivePursuit } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -13,6 +13,9 @@ export function Results() {
       title="Pricing Results"
       sub="Cost-to-price at the selected confidence, with variance-based reserve, fee, capacity reconciliation, budget check and phase split."
     >
+      <TipBox>
+        Read this bottom-up: base cost at your confidence level, then reserve, fee, and PTW. Reserve is the larger of estimate spread and velocity CoV — if it looks thin, widen Low/High on soft backlog scope rather than forcing a manual override.
+      </TipBox>
       <div className="resgrid">
         <Stat
           hero

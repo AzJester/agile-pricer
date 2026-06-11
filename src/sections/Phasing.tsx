@@ -1,5 +1,5 @@
 import { OptionalNumInput } from '../components/inputs';
-import { Card, Legend, Note, Pill, Section, utilTone } from '../components/ui';
+import { Card, Legend, Note, Pill, Section, utilTone, TipBox } from '../components/ui';
 import { pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
 import { useResult } from '../state/useResult';
@@ -21,6 +21,9 @@ export function Phasing() {
       title="Time-Phasing: Surge & AI Disruption"
       sub="Most requirements are not straight-line. Use the surge factor to scale staffed capacity in a given year (a Dev-heavy year then an O&S tail), and the AI / automation factor to model throughput gains that let a smaller team clear the same backlog in the out-years."
     >
+      <TipBox>
+        Automation factors above 1.0 mean fewer sprints for the same points in that PI year — claim only what you can defend in evaluation. Surge scales funded capacity for a single year, useful when one year's backlog spikes without restaffing the whole program.
+      </TipBox>
       <div className="card flush">
         <div className="ch">
           <h3>Demand vs Funded Capacity by Year</h3>

@@ -1,4 +1,4 @@
-import { Callout, Card, Note, Section } from '../components/ui';
+import { Callout, Card, Note, Section, TipBox } from '../components/ui';
 
 function Step(props: { n: number; title: string; body: string }) {
   return (
@@ -25,6 +25,9 @@ export function StartHere() {
         </>
       }
     >
+      <TipBox>
+        Tip boxes like this one appear on every tab while <b>Tips</b> is on (toolbar, top right). New users: leave them on for your first pursuit — each explains what the screen wants from you and what to watch out for.
+      </TipBox>
       <Callout color="var(--twilight)">
         <b>This tool is illustrative.</b> Every figure is a placeholder. Do not enter CUI, controlled, or proprietary program
         data unless you are working in an accredited environment.

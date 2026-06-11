@@ -1,5 +1,5 @@
 import { NumCell, TextCell } from '../components/inputs';
-import { AddRowButton, Callout, Card, DeleteRowButton, Legend, Note, Pill, Section } from '../components/ui';
+import { AddRowButton, Callout, Card, DeleteRowButton, Legend, Note, Pill, Section, TipBox } from '../components/ui';
 import { newRowId, type CapacityInputs } from '../engine';
 import { money0, pct } from '../lib/format';
 import { useActivePursuit, useStore } from '../state/store';
@@ -55,6 +55,9 @@ export function Capacity() {
       title="Capacity Subscription Tiers"
       sub="An alternative commercial wrapper: the customer funds a level of delivery capacity per option period and reprioritizes through the backlog, rather than buying labor hours. Tier prices are built bottom-up from the same loaded team cost used everywhere else, so they stay defensible. Tiers are menu options the customer chooses between; the figures are not additive."
     >
+      <TipBox>
+        An alternative lens on the same program: price staffed capacity per period instead of scope. Tiers reuse your archetypes and wrap rates so both models stay consistent, and the $/FTE advisory flags tiers outside a defensible band.
+      </TipBox>
       <Callout>
         <b>How a tier is priced.</b> Recurring cost / period = Σ(teams × cost per team-sprint) × working sprints in the period,
         plus an ODC allowance with material handling. Price applies the subscription reserve then fee (same shape as the
