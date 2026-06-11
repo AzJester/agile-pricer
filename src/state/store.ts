@@ -124,7 +124,7 @@ function loadPersisted(): PersistedState {
   }
 }
 
-function persist(s: PersistedState) {
+function persistNow(s: PersistedState) {
   try {
     localStorage.setItem(
       STORAGE_KEY,
@@ -143,6 +143,29 @@ function persist(s: PersistedState) {
   }
 }
 
+// Persistence is debounced: stringifying the whole portfolio (plus all
+// snapshots) on every cell blur is a growing synchronous main-thread cost.
+// pagehide/hidden flush keeps the trailing write from being lost.
+const PERSIST_DELAY_MS = 250;
+let persistTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingPersist: PersistedState | null = null;
+
+export function flushPersist() {
+  if (!pendingPersist) return;
+  const snap = pendingPersist;
+  pendingPersist = null;
+  clearTimeout(persistTimer);
+  if (!persistNow(snap)) {
+    useStore.setState({ toast: 'Storage unavailable — use Export JSON to keep your work' });
+  }
+}
+
+function schedulePersist(s: PersistedState) {
+  pendingPersist = s;
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(flushPersist, PERSIST_DELAY_MS);
+}
+
 function snapshot(s: Pick<AppState, 'pursuits' | 'activeId'>): Snapshot {
   return { pursuits: s.pursuits, activeId: s.activeId };
 }
@@ -153,12 +176,15 @@ export const useStore = create<AppState>((set, get) => {
   /** Apply a state change with undo tracking and persistence. */
   function commit(next: Partial<PersistedState>) {
     const cur = get();
-    const past = [...cur.past, snapshot(cur)].slice(-UNDO_LIMIT);
-    const merged = { ...cur, ...next, past, future: [] as Snapshot[] };
-    if (!persist(merged)) {
-      merged.toast = 'Storage unavailable — use Export JSON to keep your work';
-    }
+    // Only pursuit/active-pursuit changes are undoable. Recording other keys
+    // (snapshots, tips, rate library) consumed an undo slot and toasted
+    // "Undone" while undo() restored nothing.
+    const undoable = 'pursuits' in next || 'activeId' in next;
+    const past = undoable ? [...cur.past, snapshot(cur)].slice(-UNDO_LIMIT) : cur.past;
+    const future = undoable ? ([] as Snapshot[]) : cur.future;
+    const merged = { ...cur, ...next, past, future };
     set(merged);
+    schedulePersist(merged);
   }
 
   return {
@@ -252,7 +278,7 @@ export const useStore = create<AppState>((set, get) => {
         future: [...future, snapshot({ pursuits, activeId })],
       };
       set(next);
-      persist({ ...get(), ...next });
+      schedulePersist(get());
       get().showToast('Undone');
     },
 
@@ -270,7 +296,7 @@ export const useStore = create<AppState>((set, get) => {
         future: future.slice(0, -1),
       };
       set(next);
-      persist({ ...get(), ...next });
+      schedulePersist(get());
       get().showToast('Redone');
     },
 
@@ -347,6 +373,21 @@ export const useStore = create<AppState>((set, get) => {
     clearToast: () => set({ toast: null }),
   };
 });
+
+if (typeof window !== 'undefined') {
+  // Flush the trailing debounced write before the page goes away.
+  window.addEventListener('pagehide', flushPersist);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPersist();
+  });
+  // Two tabs share one storage key with last-writer-wins semantics; there is
+  // no merge, so at least make the overwrite visible.
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY && e.newValue) {
+      useStore.setState({ toast: 'Portfolio changed in another tab — edits here will overwrite it' });
+    }
+  });
+}
 
 export function useActivePursuit(): Pursuit {
   return useStore((s) => s.pursuits.find((p) => p.id === s.activeId)?.data ?? s.pursuits[0].data);
