@@ -243,6 +243,61 @@ export function Histogram({
   );
 }
 
+/** Cumulative area/line chart (expenditure curve). One value per month. */
+export function AreaLine({
+  values,
+  w = 620,
+  h = 200,
+  fmtY = (v: number) => '$' + (v / 1e6).toFixed(1) + 'M',
+  label,
+}: {
+  values: number[];
+  w?: number;
+  h?: number;
+  fmtY?: (v: number) => string;
+  label?: string;
+}) {
+  if (!values.length) return null;
+  const pad = { l: 64, r: 10, t: 12, b: 30 };
+  const iw = w - pad.l - pad.r;
+  const ih = h - pad.t - pad.b;
+  const max = Math.max(...values, 1);
+  const x = (i: number) => pad.l + (values.length > 1 ? (i / (values.length - 1)) * iw : iw);
+  const y = (v: number) => pad.t + ih - (v / max) * ih;
+  const line = values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  const area = `${line}L${(pad.l + iw).toFixed(1)},${(pad.t + ih).toFixed(1)}L${pad.l},${(pad.t + ih).toFixed(1)}Z`;
+  const grid = [1, 2, 3, 4].map((g) => {
+    const gv = (max * g) / 4;
+    return (
+      <g key={g}>
+        <line x1={pad.l} y1={y(gv)} x2={w - pad.r} y2={y(gv)} stroke="#eef" strokeWidth={1} />
+        <text x={pad.l - 6} y={y(gv) + 3} fontSize={9} textAnchor="end" fill="#888">
+          {fmtY(gv)}
+        </text>
+      </g>
+    );
+  });
+  // A year tick every 12 months keeps the axis readable at any horizon.
+  const ticks = values.map((_, i) => i).filter((i) => i % 12 === 0);
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ maxWidth: w }} role="img" aria-label={label}>
+      {grid}
+      <path d={area} fill={CHART_COLORS.sky} opacity={0.16} />
+      <path d={line} fill="none" stroke={CHART_COLORS.force} strokeWidth={2}>
+        <title>{label ? `${label} — total ${money0(Math.round(values[values.length - 1]))}` : ''}</title>
+      </path>
+      {ticks.map((i) => (
+        <text key={i} x={Math.max(x(i), pad.l + 12)} y={h - 10} fontSize={9.5} textAnchor="middle" fill="#888">
+          {'Yr ' + (Math.floor(i / 12) + 1)}
+        </text>
+      ))}
+      <text x={w - pad.r} y={h - 10} fontSize={9.5} textAnchor="end" fill="#555">
+        {money0(Math.round(values[values.length - 1]))}
+      </text>
+    </svg>
+  );
+}
+
 export interface TornadoDriver {
   driver: string;
   low: number;
