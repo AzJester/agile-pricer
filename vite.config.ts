@@ -45,6 +45,4 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts'],
   },
-  // vitest 2.x types are built against its bundled vite 5, so the `test`
-  // key doesn't typecheck against vite 6's UserConfig without this cast.
-} as Parameters<typeof defineConfig>[0]);
+});
