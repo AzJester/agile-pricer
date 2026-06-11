@@ -97,6 +97,21 @@ test('rate basis columns offer dropdown choices and accept custom values', async
   await expect(degree).toHaveValue('JD');
 });
 
+test('a custom location typed in one row joins the dropdown choices for all rows', async ({ page }) => {
+  await page.goto('/#/rates');
+  const rows = page.locator('table tbody tr');
+  const loc0 = rows.nth(0).locator('input[aria-label="Location / market"]');
+  await loc0.fill('Kwajalein Atoll');
+  await loc0.press('Enter');
+  const listId = await rows.nth(1).locator('input[aria-label="Location / market"]').getAttribute('list');
+  await expect(page.locator(`datalist[id="${listId}"] option[value="Kwajalein Atoll"]`)).toHaveCount(1);
+  // The expanded static list and the new degrees are present too.
+  await expect(page.locator(`datalist[id="${listId}"] option[value="San Diego, CA"]`)).toHaveCount(1);
+  const degreeList = await rows.nth(0).locator('input[aria-label="Degree"]').getAttribute('list');
+  await expect(page.locator(`datalist[id="${degreeList}"] option[value="JD"]`)).toHaveCount(1);
+  await expect(page.locator(`datalist[id="${degreeList}"] option[value="DBA"]`)).toHaveCount(1);
+});
+
 test('Escape closes the snapshots dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Snapshots' }).click();
