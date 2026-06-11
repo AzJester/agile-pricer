@@ -139,6 +139,60 @@ test('dashboard labels are never truncated and widgets drill through', async ({ 
   await expect(page.locator('main h2').first()).toHaveText('Pricing Results');
 });
 
+test('no text is truncated anywhere in the app', async ({ page }) => {
+  const audit = async (where: string) => {
+    const bad = await page.evaluate(() => {
+      const out: string[] = [];
+      // (a) DOM text clipped by ellipsis or hidden single-line overflow
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('main *, header *, nav *, .dialog *'))) {
+        if (el.children.length || !el.textContent?.trim()) continue;
+        if (['INPUT', 'SELECT', 'TEXTAREA', 'OPTION'].includes(el.tagName)) continue;
+        const cs = getComputedStyle(el);
+        const clips = cs.textOverflow === 'ellipsis' || (cs.overflowX === 'hidden' && cs.whiteSpace === 'nowrap');
+        if (clips && el.scrollWidth > el.clientWidth + 1) out.push(`clipped: "${el.textContent.trim().slice(0, 40)}"`);
+      }
+      // (b) SVG chart text escaping its viewBox
+      for (const svg of Array.from(document.querySelectorAll('svg[viewBox]'))) {
+        const [, , vw, vh] = (svg.getAttribute('viewBox') || '0 0 0 0').split(/\s+/).map(Number);
+        for (const t of Array.from(svg.querySelectorAll('text'))) {
+          const b = (t as SVGTextElement).getBBox();
+          if (b.x < -1 || b.y < -1 || b.x + b.width > vw + 1 || b.y + b.height > vh + 2) {
+            out.push(`svg overflow: "${t.textContent?.trim().slice(0, 40)}"`);
+          }
+        }
+      }
+      return out;
+    });
+    expect(bad, where).toEqual([]);
+  };
+  const sections = [
+    'start', 'overview', 'rates', 'teams', 'backlog', 'velocity', 'phasing', 'loe', 'psupport', 'odc',
+    'milestones', 'teaming', 'results', 'mps', 'boe', 'value', 'checks', 'capacity', 'dashboard',
+    'funding', 'staffing', 'risk', 'sensitivity', 'margin', 'scenario',
+  ];
+  for (const id of sections) {
+    await page.goto('/#/' + id);
+    // Render the on-demand charts so their labels are audited too.
+    if (id === 'risk') {
+      await page.getByRole('button', { name: 'Run 4,000 trials' }).click();
+      await expect(page.getByText('Simulated P50 cost')).toBeVisible();
+    }
+    if (id === 'sensitivity') {
+      await page.getByRole('button', { name: '±20%' }).click();
+      await expect(page.getByText(/Tornado — price swing/)).toBeVisible();
+    }
+    await audit('#' + id);
+  }
+  // The import dialog's column chips wrap long CSV headers instead of clipping.
+  await page.goto('/#/backlog');
+  await page.getByRole('button', { name: /Import \/ Paste/ }).click();
+  await page
+    .locator('.dialog textarea')
+    .fill('A Very Long Custom Field Header For Story Points\tSummary\n40\tImported epic\n');
+  await expect(page.getByText('1 epics ready')).toBeVisible();
+  await audit('import dialog');
+});
+
 test('Escape closes the snapshots dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Snapshots' }).click();

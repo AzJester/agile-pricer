@@ -127,8 +127,9 @@ export function BacklogImportDialog(props: { onClose: () => void }) {
           <>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '10px 0' }}>
               {effectiveMapping.map((f, i) => (
-                <div key={i} style={{ fontSize: 11 }}>
-                  <div className="hint" style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div key={i} style={{ fontSize: 11, maxWidth: 140 }}>
+                  {/* Long CSV headers wrap instead of truncating to "Custom fie…" */}
+                  <div className="hint" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.25 }}>
                     {hasHeader ? rows[0][i] || `col ${i + 1}` : `col ${i + 1}`}
                   </div>
                   <select

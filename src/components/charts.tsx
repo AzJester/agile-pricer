@@ -211,7 +211,8 @@ export function Histogram({
   const mark = (v: number, col: string, lab: string) => (
     <g>
       <line x1={xv(v)} y1={pad.t} x2={xv(v)} y2={pad.t + ih} stroke={col} strokeWidth={2} strokeDasharray="4 3" />
-      <text x={xv(v)} y={pad.t + 8} fontSize={9.5} textAnchor="middle" fill={col}>
+      {/* Clamp the label inside the viewBox when the marker sits near an edge */}
+      <text x={Math.min(Math.max(xv(v), pad.l + 12), w - pad.r - 12)} y={pad.t + 8} fontSize={9.5} textAnchor="middle" fill={col}>
         {lab}
       </text>
     </g>
@@ -251,11 +252,18 @@ export interface TornadoDriver {
 
 export function Tornado({ drivers, base, w = 640 }: { drivers: TornadoDriver[]; base: number; w?: number }) {
   const h = drivers.length * 34 + 30;
-  const pad = { l: 160, r: 70, t: 10, b: 10 };
+  // Gutters sized to the actual label text (~6.2px/char at font-size 11):
+  // a fixed 160px left pad clipped long driver names off the SVG edge.
+  const labelPx = Math.max(...drivers.map((d) => d.driver.length), 8) * 6.2 + 14;
+  const valuePx = Math.max(...drivers.map((d) => money0(d.swing / 2).length), 6) * 6.6 + 22;
+  const pad = { l: Math.min(Math.ceil(labelPx), w * 0.45), r: Math.ceil(valuePx), t: 10, b: 10 };
   const iw = w - pad.l - pad.r;
   const ih = h - pad.t - pad.b;
-  const lo = Math.min(base, ...drivers.map((d) => d.low));
-  const hi = Math.max(base, ...drivers.map((d) => d.high));
+  // For inverse drivers (velocity down -> price up) the larger outcome sits
+  // in `low`, so the domain must span both ends of every bar or the longest
+  // bar (and its value label) overshoots the right edge of the chart.
+  const lo = Math.min(base, ...drivers.map((d) => Math.min(d.low, d.high)));
+  const hi = Math.max(base, ...drivers.map((d) => Math.max(d.low, d.high)));
   const span = hi - lo || 1;
   const x = (v: number) => pad.l + ((v - lo) / span) * iw;
   const rowH = ih / Math.max(drivers.length, 1);
