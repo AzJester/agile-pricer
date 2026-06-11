@@ -27,8 +27,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Production ships only behind a green e2e suite; previously the e2e
+      # job ran in a parallel workflow and could fail while deploy succeeded.
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
       - name: Publish dist to gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,7 +10,9 @@ import { create } from 'zustand';
 export function useFocusTrap<T extends HTMLElement>(onEscape?: () => void) {
   const ref = useRef<T>(null);
   const escRef = useRef(onEscape);
-  escRef.current = onEscape;
+  useEffect(() => {
+    escRef.current = onEscape;
+  });
   useEffect(() => {
     const el = ref.current;
     if (!el) return;

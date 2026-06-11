@@ -449,7 +449,7 @@ describe('repair / import validation', () => {
   it('v1 baseline JSON computes the same golden total after migration', () => {
     const s = baselineSeed();
     // Reconstruct the v1 control shape.
-    const v1 = JSON.parse(JSON.stringify(s)) as Record<string, any>;
+    const v1 = JSON.parse(JSON.stringify(s)) as { schemaVersion?: number; risk?: unknown; control: Record<string, unknown> };
     delete v1.schemaVersion;
     delete v1.risk;
     v1.control.baseMonths = 12;
